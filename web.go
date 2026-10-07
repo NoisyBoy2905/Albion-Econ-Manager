@@ -107,13 +107,14 @@ type stateJSON struct {
 	LastPacket int           `json:"lastPacketSec"` // seconds ago, -1 if never
 	Flips      []flipJSON    `json:"flips"`
 	Crafts     []Craft       `json:"crafts"`
+	Trips      []Trip        `json:"trips"`
 	All        []PriceRow    `json:"all"`
 	Recording  recordingJSON `json:"recording"`
 	Public     publicJSON    `json:"public"`
 	Events     []Event       `json:"events"`
 }
 
-func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) stateJSON {
+func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64) stateJSON {
 	flips := a.book.Flips(tax, maxAge)
 	out := make([]flipJSON, 0, len(flips))
 	for i, f := range flips {
@@ -128,6 +129,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) s
 			AgeMin: int(f.Age.Minutes()),
 		})
 	}
+	trips := planTrips(out, carryKg, budget)
 	crafts := a.book.Crafts(tax, returnRate, stationFee, maxAge)
 	if len(crafts) > 300 {
 		crafts = crafts[:300]
@@ -150,7 +152,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) s
 		Listening: a.adapters > 0, Adapters: a.adapters,
 		Zone: a.city, ZoneName: cityName(a.city), InMarket: inMarket,
 		Packets: a.packets, Orders: a.orders, Prices: prices, Encrypted: a.encrypted,
-		LastPacket: last, Flips: out, Crafts: crafts, All: all, Events: events, Recording: rec, Public: pub,
+		LastPacket: last, Flips: out, Crafts: crafts, Trips: trips, All: all, Events: events, Recording: rec, Public: pub,
 	}
 }
 
@@ -184,12 +186,20 @@ func (a *App) routes() http.Handler {
 		if err != nil || fee < 0 || fee > 100000 {
 			fee = 0
 		}
+		carry, err := strconv.ParseFloat(q.Get("carry"), 64)
+		if err != nil || carry < 0 || carry > 1e9 {
+			carry = 0
+		}
+		budget, err := strconv.ParseInt(q.Get("budget"), 10, 64)
+		if err != nil || budget < 0 {
+			budget = 0
+		}
 		// Remember these so the saved flips.csv matches what you're viewing.
 		a.mu.Lock()
 		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
 		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute))
+		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget))
 	})
 
 	mux.HandleFunc("/api/record/start", func(w http.ResponseWriter, r *http.Request) {

@@ -294,8 +294,8 @@ func TestRecordingRoundTrip(t *testing.T) {
 func TestStateNeverSendsNull(t *testing.T) {
 	recipes = map[string]Recipe{}
 	app := NewApp(filepath.Join(t.TempDir(), "p.json"))
-	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour))
-	for _, k := range []string{`"flips":null`, `"crafts":null`, `"events":null`, `"all":null`} {
+	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour, 1500, 1000000))
+	for _, k := range []string{`"flips":null`, `"crafts":null`, `"trips":null`, `"events":null`, `"all":null`} {
 		if strings.Contains(string(data), k) {
 			t.Fatalf("window would break on %s", k)
 		}
@@ -414,6 +414,45 @@ func TestDualSwordsFlipAndCraft(t *testing.T) {
 	// listing: 48,000 - 6.5% = 44,880 - 29,849 = 15,031
 	if c.Profit != 22951 || c.ListProfit != 15031 {
 		t.Fatalf("wrong Dual Swords craft profits: %d instant, %d listed", c.Profit, c.ListProfit)
+	}
+}
+
+func TestPlanTrips(t *testing.T) {
+	fj := func(from, to, name string, weight float64, qty int, total, cost int64) flipJSON {
+		return flipJSON{From: from, To: to, Name: name, Weight: weight, Qty: qty, Total: total, Cost: cost}
+	}
+	flips := []flipJSON{
+		// Lymhurst -> Black Market: three items, packed by profit per kg.
+		fj("Lymhurst", "Black Market", "heavy", 100, 10, 10000, 50000), // perKg 10
+		fj("Lymhurst", "Black Market", "light", 1, 10, 500, 1000),      // perKg 50
+		fj("Lymhurst", "Black Market", "float", 0, 3, 300, 300),        // weightless, packed first
+		// A smaller route, to check ordering.
+		fj("Martlock", "Caerleon", "bits", 1, 2, 50, 100),
+		// Nothing affordable here, so it must be dropped.
+		fj("Thetford", "Lymhurst", "pricey", 1, 1, 100, 999999999),
+	}
+
+	trips := planTrips(flips, 205, 12000)
+	if len(trips) != 2 {
+		t.Fatalf("expected 2 trips (the unaffordable one dropped), got %d: %+v", len(trips), trips)
+	}
+	// Sorted by profit: the Black Market route first.
+	top := trips[0]
+	if top.From != "Lymhurst" || top.To != "Black Market" {
+		t.Fatalf("trips not sorted by profit: %+v", trips)
+	}
+	// Order: weightless first, then by profit per kg (light before heavy).
+	if len(top.Picks) != 3 || top.Picks[0].Name != "float" || top.Picks[1].Name != "light" || top.Picks[2].Name != "heavy" {
+		t.Fatalf("wrong pack order: %+v", top.Picks)
+	}
+	// float: all 3 (weightless, affordable). light: all 10. heavy: weight-capped
+	// to 1 (195 kg left / 100 kg each).
+	if top.Picks[0].N != 3 || top.Picks[1].N != 10 || top.Picks[2].N != 1 {
+		t.Fatalf("wrong quantities: %+v", top.Picks)
+	}
+	// profit 300 + 500 + 1000 = 1,800; spent 300 + 1,000 + 5,000 = 6,300; 110 kg.
+	if top.Profit != 1800 || top.Spent != 6300 || top.Kg != 110 {
+		t.Fatalf("wrong trip totals: profit %d, spent %d, kg %v", top.Profit, top.Spent, top.Kg)
 	}
 }
 

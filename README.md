@@ -101,8 +101,8 @@ The game's own data has every recipe, for example 20 planks + 12 cloth for a Gre
 
 It uses Normal quality prices for crafted items.
 
-**8. Trip planner (in web/index.html)**
-For each pair of cities, it takes the flips on that route and sorts them by **profit per kg**. Then it fills your bags from the top: as many of each as it can, until you run out of carry weight or silver. Item weights come from the game data. Sorting by profit per kg is a "greedy" method: it's quick, and nearly always gives the best load or close to it.
+**8. Trip planner (trips.go)**
+For each pair of cities, it takes the flips on that route and sorts them by **profit per kg**. Then it fills your bags from the top: as many of each as it can, until you run out of carry weight or silver. Item weights come from the game data. Sorting by profit per kg is a "greedy" method: it's quick, and nearly always gives the best load or close to it. The plan is worked out on the server from the carry weight and silver budget you type in, which the window sends with each update; the page just draws the result.
 
 
 **9. The window (web.go and web/index.html)**

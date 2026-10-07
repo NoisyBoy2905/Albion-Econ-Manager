@@ -407,7 +407,7 @@ async function refresh() {
   const tax = $("premium").checked ? 0.04 : 0.08;
   let data;
   try {
-    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}`);
+    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}`);
     data = await res.json();
   } catch (e) {
     // only a failed request means the sniffer isn't running
@@ -416,7 +416,7 @@ async function refresh() {
     $("traffic").textContent = "Start albion-sniffer.exe again";
     return;
   }
-  ["flips", "crafts", "events", "all"].forEach(k => data[k] = data[k] || []);
+  ["flips", "crafts", "trips", "events", "all"].forEach(k => data[k] = data[k] || []);
   data.recording = data.recording || {};
   data.public = data.public || {};
   latest = data;
@@ -510,7 +510,7 @@ function render() {
   $("n-prices").textContent = s.all.length || "";
   const all = s.all.filter(p => !q || `${p.name} ${p.id} ${p.city}`.toLowerCase().includes(q));
 
-  const trips = planTrips(s.flips);
+  const trips = s.trips;
   // Only the visible tab's table is in view, so only rebuild that one.
   // Hidden tables are refreshed by showTab() the moment you switch to them.
   if (tab === "crafts") {
@@ -658,32 +658,8 @@ function renderCraftHero(s, crafts) {
 
 
 // ---- trip planner ----
-// For each pair of cities, fill the bags with the flips that make the most
-// profit per kg, until we run out of weight or silver.
-function planTrips(flips) {
-  const carry = Number($("carry").value) || 0;
-  const budget = Number($("budget").value) || 0;
-  const routes = {};
-  flips.forEach(f => (routes[f.from + "|" + f.to] = routes[f.from + "|" + f.to] || []).push(f));
-  const trips = Object.values(routes).map(list => {
-    let kg = carry, silver = budget, profit = 0, spent = 0, used = 0;
-    const picks = [];
-    const perKg = f => f.weight > 0 ? f.total / f.qty / f.weight : Infinity;
-    [...list].sort((a, b) => perKg(b) - perKg(a)).forEach(f => {
-      const each = f.cost / f.qty;
-      let n = f.qty;
-      if (f.weight > 0) n = Math.min(n, Math.floor(kg / f.weight));
-      if (each > 0) n = Math.min(n, Math.floor(silver / each));
-      if (n <= 0) return;
-      const gain = Math.round(f.total / f.qty * n), cost = Math.round(each * n);
-      picks.push({...f, n, gain, spend: cost});
-      kg -= n * f.weight; silver -= cost; profit += gain; spent += cost; used += n * f.weight;
-    });
-    return {from: list[0].from, to: list[0].to, picks, profit, spent, kg: used};
-  }).filter(t => t.profit > 0).sort((a, b) => b.profit - a.profit);
-  return trips;
-}
-
+// The plan itself is worked out on the server (trips.go) from the carry
+// weight and budget sent with each poll; here we just draw it.
 function renderTrips(s, trips) {
   $("trips").innerHTML = trips.length ? trips.slice(0, 3).map(t => `
     <div class="trip">
@@ -794,9 +770,12 @@ $("alerts").addEventListener("change", () => {
   }
   if ($("alerts").checked) chime();  // a test sound, and it unlocks audio in the browser
 });
-["search", "min", "alert-at", "carry", "budget"].forEach(id => $(id).addEventListener("input", () => { remember(); latest && render(); }));
+["search", "min", "alert-at"].forEach(id => $(id).addEventListener("input", () => { remember(); latest && render(); }));
 ["cat", "profitable", "alerts"].forEach(id => $(id).addEventListener("change", () => { remember(); latest && render(); }));
+// carry and budget feed the server-side trip planner, so changing them refetches.
 ["premium", "age", "rr", "fee"].forEach(id => $(id).addEventListener("change", () => { remember(); refresh(); }));
+// carry and budget feed the server-side trip planner, so changing them refetches.
+["carry", "budget"].forEach(id => $(id).addEventListener("input", () => { remember(); refresh(); }));
 
 restore();
 refresh();
