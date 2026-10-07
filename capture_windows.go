@@ -17,6 +17,7 @@ func main() {
 	loadItemNames()
 	loadRecipes()
 	app := NewApp("prices.json")
+	flushOnExit(app)
 
 	fmt.Println("Albion market sniffer")
 	fmt.Println("Only reads your own game traffic. It never changes or controls the game.")

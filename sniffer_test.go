@@ -170,6 +170,7 @@ func TestFlips(t *testing.T) {
 	if f.Qty != 5 || f.Total != 2300 {
 		t.Fatalf("wrong quantity: got %d bags, %d total", f.Qty, f.Total)
 	}
+	b.Flush() // saves are debounced, so flush before reading the file
 	if _, err := os.Stat(filepath.Join(dir, "prices.json")); err != nil {
 		t.Fatal("prices.json not saved")
 	}
@@ -414,6 +415,30 @@ func TestDualSwordsFlipAndCraft(t *testing.T) {
 	// listing: 48,000 - 6.5% = 44,880 - 29,849 = 15,031
 	if c.Profit != 22951 || c.ListProfit != 15031 {
 		t.Fatalf("wrong Dual Swords craft profits: %d instant, %d listed", c.Profit, c.ListProfit)
+	}
+}
+
+func TestPruneDropsAncientPrices(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 1, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T5_BAG", Quality: 1, Price: 2000, Amount: 1, Type: "offer"}}, "1002", false)
+	b.Prices[key("T4_BAG", 1, "1002")].SellSeen = time.Now().Add(-40 * 24 * time.Hour)
+
+	if n := b.prune(keepPrices); n != 1 {
+		t.Fatalf("expected 1 ancient price pruned, got %d", n)
+	}
+	if b.Count() != 1 {
+		t.Fatalf("expected the fresh price to remain, have %d", b.Count())
+	}
+}
+
+func TestFlushWritesNow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "p.json")
+	b := NewBook(path)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 1, Type: "offer"}}, "1002", false)
+	b.Flush()
+	if NewBook(path).Count() != 1 {
+		t.Fatal("Flush should have written the price to disk at once")
 	}
 }
 

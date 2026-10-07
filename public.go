@@ -154,9 +154,7 @@ func (a *App) fetchPublic(base string, wait time.Duration) {
 		p.state.Prices = added
 		p.mu.Unlock()
 	}
-	a.book.mu.Lock()
-	a.book.save()
-	a.book.mu.Unlock()
+	a.book.Flush()
 
 	p.mu.Lock()
 	p.state.Running = false

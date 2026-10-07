@@ -80,10 +80,15 @@ type Price struct {
 	BuyPublic  bool
 }
 
+// Drop prices we haven't seen on either side for this long, so prices.json
+// doesn't grow forever across restarts.
+const keepPrices = 30 * 24 * time.Hour
+
 type Book struct {
-	mu     sync.Mutex
-	Prices map[string]*Price
-	path   string
+	mu        sync.Mutex
+	Prices    map[string]*Price
+	path      string
+	saveTimer *time.Timer // a pending debounced save, if any
 }
 
 func NewBook(path string) *Book {
@@ -91,7 +96,27 @@ func NewBook(path string) *Book {
 	if data, err := os.ReadFile(path); err == nil {
 		json.Unmarshal(data, &b.Prices)
 	}
+	b.prune(keepPrices)
 	return b
+}
+
+// prune removes prices that are older than maxAge on both sides.
+func (b *Book) prune(maxAge time.Duration) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	now := time.Now()
+	n := 0
+	for k, p := range b.Prices {
+		seen := p.SellSeen
+		if p.BuySeen.After(seen) {
+			seen = p.BuySeen
+		}
+		if now.Sub(seen) > maxAge {
+			delete(b.Prices, k)
+			n++
+		}
+	}
+	return n
 }
 
 func key(item string, q int, city string) string {
@@ -178,14 +203,42 @@ func (b *Book) Add(orders []Order, city string, divide bool) {
 			e.Buy, e.BuySeen = e.BuyLevels[0].Price, now
 		}
 	}
-	b.save()
+	b.scheduleSave()
 }
 
-func (b *Book) save() {
+// writeLocked marshals the book and writes it to disk. Caller holds b.mu.
+func (b *Book) writeLocked() {
 	data, err := json.Marshal(b.Prices)
 	if err == nil {
 		os.WriteFile(b.path, data, 0644)
 	}
+}
+
+// scheduleSave writes the book a couple of seconds after a change, so a
+// burst of market pages becomes one write instead of one per page. Caller
+// holds b.mu.
+func (b *Book) scheduleSave() {
+	if b.saveTimer != nil {
+		return // a save is already pending; it will pick up this change
+	}
+	b.saveTimer = time.AfterFunc(2*time.Second, func() {
+		b.mu.Lock()
+		b.saveTimer = nil
+		b.writeLocked()
+		b.mu.Unlock()
+	})
+}
+
+// Flush writes the book to disk now and cancels any pending save. Call it
+// when the program is shutting down, so nothing is lost.
+func (b *Book) Flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.saveTimer != nil {
+		b.saveTimer.Stop()
+		b.saveTimer = nil
+	}
+	b.writeLocked()
 }
 
 type Flip struct {

@@ -39,6 +39,7 @@ func main() {
 	loadRecipes()
 	os.Remove("demo-prices.json")
 	app := NewApp("demo-prices.json")
+	flushOnExit(app)
 	app.adapters = 2
 	addr, err := app.serve(*port)
 	if err != nil {

@@ -26,7 +26,7 @@ In the window you can:
 - set a minimum total profit
 - click any column heading to sort by it
 
-Close the console to stop it. It saves `prices.json` (every price it's seen, so they're still there next time) and `flips.csv` (open it in Excel).
+Close the console to stop it. It saves `prices.json` (every price it's seen, so they're still there next time; prices not seen for 30 days are dropped so the file doesn't grow forever) and `flips.csv` (open it in Excel). Saving is batched, and it saves once more when you close it.
 
 Options (run it from a terminal):
 
