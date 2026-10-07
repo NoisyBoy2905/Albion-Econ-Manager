@@ -115,8 +115,8 @@ type stateJSON struct {
 	Events     []Event       `json:"events"`
 }
 
-func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool) stateJSON {
-	flips := a.book.Flips(tax, maxAge, freshFirst)
+func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool, haulPerKg, risk float64) stateJSON {
+	flips := a.book.Flips(tax, maxAge, freshFirst, haulPerKg, risk)
 	out := make([]flipJSON, 0, len(flips))
 	for i, f := range flips {
 		if i == 300 {
@@ -196,12 +196,20 @@ func (a *App) routes() http.Handler {
 			budget = 0
 		}
 		freshFirst := q.Get("fresh") == "1"
+		haul, err := strconv.ParseFloat(q.Get("haul"), 64)
+		if err != nil || haul < 0 || haul > 1e7 {
+			haul = 0
+		}
+		risk, err := strconv.ParseFloat(q.Get("risk"), 64)
+		if err != nil || risk < 0 || risk > 1 {
+			risk = 0
+		}
 		// Remember these so the saved flips.csv matches what you're viewing.
 		a.mu.Lock()
 		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
 		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst))
+		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst, haul, risk))
 	})
 
 	mux.HandleFunc("/api/record/start", func(w http.ResponseWriter, r *http.Request) {

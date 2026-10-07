@@ -49,6 +49,12 @@ func cityName(id string) string {
 	return id
 }
 
+// Routes through the black zone to Caerleon or the Black Market are where
+// you get ganked, so flips on them can take a risk haircut.
+var dangerCity = map[string]bool{"3003": true, "3005": true, "3013-Auction2": true}
+
+func dangerousRoute(from, to string) bool { return dangerCity[from] || dangerCity[to] }
+
 var placeID = regexp.MustCompile(`^[0-9]{3,6}$`)
 
 // looksLikePlace checks if a string is a market location id like "3005"
@@ -324,7 +330,10 @@ func listFill(sells []Level, proceeds int64) (qty int, total, cost int64) {
 // list your own sell order at the going rate. Each flip keeps whichever of
 // the two earns more in total. When freshFirst is set, flips built on older
 // prices are ranked lower, so a stale outlier doesn't sit at the top.
-func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool) []Flip {
+// haulPerKg charges silver per kg carried; risk (0..1) is the share you expect
+// to lose to ganks on a dangerous route. Both default to 0 (no change). A flip
+// that no longer profits once those are taken off is dropped.
+func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPerKg, risk float64) []Flip {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := time.Now()
@@ -393,6 +402,18 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool) []Flip 
 					f.Profit, f.Qty, f.Total, f.Cost = liProfit, liQty, liTotal, liCost
 					f.Public = from.SellPublic || to.SellPublic
 					sellSeen = to.SellSeen
+				}
+				// Take off the cost of hauling, and on a dangerous route the
+				// expected loss to ganks (losing the cargo you paid for).
+				haul := itemWeight(f.Item) * haulPerKg
+				r := 0.0
+				if dangerousRoute(f.From, f.To) {
+					r = risk
+				}
+				f.Profit = int64((1-r)*float64(f.Profit)-r*float64(f.BuyFor)-haul)
+				f.Total = int64((1-r)*float64(f.Total) - r*float64(f.Cost) - haul*float64(f.Qty))
+				if f.Total <= 0 {
+					continue
 				}
 				f.Percent = float64(f.Profit) / float64(from.Sell) * 100
 				f.Age = now.Sub(from.SellSeen)

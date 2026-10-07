@@ -151,6 +151,7 @@ tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14
 .trip .sum { color: var(--muted); margin: 0 0 10px; font-size: 15px; }
 .trip .sum b { color: var(--gold); font-weight: 600; }
 .tools input#carry, .tools input#budget, .tools input#fee { width: 120px; }
+.tools input#haul, .tools input#risk { width: 90px; }
 
 
 .rec { margin: 0 0 26px; color: var(--muted); font-size: 15px; }
@@ -235,6 +236,8 @@ tr.chart-row td { padding: 0 14px 16px; }
     <div id="panel-flips" role="tabpanel" aria-labelledby="tab-flips">
       <div class="tools">
         <label>Min total profit <input type="number" id="min" min="0" step="1000" value="0" aria-label="Minimum total profit"></label>
+        <label>Haul cost /kg <input type="number" id="haul" min="0" step="5" value="0" aria-label="Haul cost in silver per kg"></label>
+        <label>Black-zone risk % <input type="number" id="risk" min="0" max="100" step="5" value="0" aria-label="Expected loss percent on Caerleon and Black Market routes"></label>
         <label><input type="checkbox" id="fresh"> Prefer fresh prices</label>
         <span class="alert-set">
           <label><input type="checkbox" id="alerts"> Alert me when a new flip makes over</label>
@@ -390,7 +393,7 @@ let open = new Set();          // crafting rows showing their materials
 let seen = null;               // flips that were already there, so alerts only fire for new ones
 let fresh = new Set();         // rows to highlight briefly
 
-const SETTINGS = ["region", "premium", "age", "min", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "budget", "fresh"];
+const SETTINGS = ["region", "premium", "age", "min", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "budget", "fresh", "haul", "risk"];
 function remember() {
   try {
     const s = {tab};
@@ -422,7 +425,7 @@ async function refresh() {
   const tax = $("premium").checked ? 0.04 : 0.08;
   let data;
   try {
-    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}&fresh=${$("fresh").checked ? 1 : 0}`);
+    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}&fresh=${$("fresh").checked ? 1 : 0}&haul=${Number($("haul").value) || 0}&risk=${(Number($("risk").value) || 0) / 100}`);
     data = await res.json();
   } catch (e) {
     // only a failed request means the sniffer isn't running
@@ -873,7 +876,7 @@ $("alerts").addEventListener("change", () => {
 // carry and budget feed the server-side trip planner, so changing them refetches.
 ["premium", "age", "rr", "fee", "fresh"].forEach(id => $(id).addEventListener("change", () => { remember(); refresh(); }));
 // carry and budget feed the server-side trip planner, so changing them refetches.
-["carry", "budget"].forEach(id => $(id).addEventListener("input", () => { remember(); refresh(); }));
+["carry", "budget", "haul", "risk"].forEach(id => $(id).addEventListener("input", () => { remember(); refresh(); }));
 
 restore();
 refresh();

@@ -24,6 +24,7 @@ In the window you can:
 - switch Premium on or off (4% or 8% tax)
 - choose how old prices can be
 - turn on **Prefer fresh prices** to rank flips built on older prices lower (each flip shows how sure it is, based on how recently the prices were seen)
+- set a **haul cost** (silver per kg) and a **black-zone risk %** to see flips after the cost of carrying goods and the expected loss to ganks on Caerleon and Black Market routes; flips that stop being worth it then drop out (both are 0 by default, so they change nothing until you set them)
 - set a minimum total profit
 - click any column heading to sort by it
 
