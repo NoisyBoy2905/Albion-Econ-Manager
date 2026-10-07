@@ -192,9 +192,10 @@ type Flip struct {
 	Item     string
 	Quality  int
 	From, To string
-	BuyFor   int64 // cheapest price
-	SellFor  int64 // best price
-	Profit   int64 // profit on the first one
+	BuyFor   int64  // cheapest price
+	SellFor  int64  // best price
+	Mode     string // "instant" = sell into buy orders, "list" = undercut sell orders
+	Profit   int64  // profit on the first one
 	Percent  float64
 	Qty      int   // how many you can flip before it stops being worth it
 	Total    int64 // profit on all of them
@@ -233,8 +234,28 @@ func match(sells, buys []Level, tax float64) (qty int, total, cost int64) {
 	return qty, total, cost
 }
 
-// Flips: buy at the cheapest sell orders in one city, then sell instantly
-// to the best buy orders in another city (like the Black Market).
+// listFill is the "list a sell order" version of match. You buy the cheapest
+// sell orders in one city and, in another, list them yourself at the going
+// rate (proceeds, already after tax and the listing fee). You keep buying for
+// as long as each one still costs less than you'd net. There's no limit from
+// the other side, so this is an upper bound: listing a lot undercuts yourself.
+func listFill(sells []Level, proceeds int64) (qty int, total, cost int64) {
+	for _, l := range sells {
+		net := proceeds - l.Price
+		if net <= 0 {
+			break
+		}
+		qty += l.Amount
+		total += int64(l.Amount) * net
+		cost += int64(l.Amount) * l.Price
+	}
+	return qty, total, cost
+}
+
+// Flips: buy at the cheapest sell orders in one city, then in another city
+// either sell instantly to the best buy orders (like the Black Market) or
+// list your own sell order at the going rate. Each flip keeps whichever of
+// the two earns more in total.
 func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -252,34 +273,65 @@ func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
 			if from.City == "" || from.Sell == 0 || now.Sub(from.SellSeen) > maxAge {
 				continue
 			}
+			sells := from.SellLevels
+			if len(sells) == 0 { // prices saved by an older version
+				sells = []Level{{from.Sell, 1}}
+			}
 			for _, to := range list {
-				if to == from || to.City == "" || to.City == from.City || to.Buy == 0 || now.Sub(to.BuySeen) > maxAge {
+				if to == from || to.City == "" || to.City == from.City {
 					continue
 				}
-				profit := int64(float64(to.Buy)*(1-tax)) - from.Sell
-				if profit <= 0 {
+
+				// Sell instantly into the destination's buy orders.
+				var inProfit, inTotal, inCost int64
+				var inQty int
+				if to.Buy > 0 && now.Sub(to.BuySeen) <= maxAge {
+					if p := int64(float64(to.Buy)*(1-tax)) - from.Sell; p > 0 {
+						buys := to.BuyLevels
+						if len(buys) == 0 {
+							buys = []Level{{to.Buy, 1}}
+						}
+						inProfit = p
+						inQty, inTotal, inCost = match(sells, buys, tax)
+					}
+				}
+
+				// List your own sell order, undercutting the cheapest one there.
+				var liProfit, liTotal, liCost int64
+				var liQty int
+				if to.Sell > 0 && now.Sub(to.SellSeen) <= maxAge {
+					proceeds := int64(float64(to.Sell) * (1 - tax - setupFee))
+					if p := proceeds - from.Sell; p > 0 {
+						liProfit = p
+						liQty, liTotal, liCost = listFill(sells, proceeds)
+					}
+				}
+
+				if inProfit <= 0 && liProfit <= 0 {
 					continue
 				}
-				sells, buys := from.SellLevels, to.BuyLevels
-				if len(sells) == 0 { // prices saved by an older version
-					sells = []Level{{from.Sell, 1}}
-				}
-				if len(buys) == 0 {
-					buys = []Level{{to.Buy, 1}}
-				}
-				qty, total, cost := match(sells, buys, tax)
-				age := now.Sub(from.SellSeen)
-				if a := now.Sub(to.BuySeen); a > age {
-					age = a
-				}
-				out = append(out, Flip{
+
+				// Keep whichever strategy earns more in total.
+				f := Flip{
 					Item: from.Item, Quality: from.Quality,
-					From: from.City, To: to.City,
-					BuyFor: from.Sell, SellFor: to.Buy,
-					Profit: profit, Percent: float64(profit) / float64(from.Sell) * 100,
-					Qty: qty, Total: total, Cost: cost, Age: age,
+					From: from.City, To: to.City, BuyFor: from.Sell,
+					Mode: "instant", SellFor: to.Buy,
+					Profit: inProfit, Qty: inQty, Total: inTotal, Cost: inCost,
 					Public: from.SellPublic || to.BuyPublic,
-				})
+				}
+				sellSeen := to.BuySeen
+				if liTotal > inTotal {
+					f.Mode, f.SellFor = "list", to.Sell
+					f.Profit, f.Qty, f.Total, f.Cost = liProfit, liQty, liTotal, liCost
+					f.Public = from.SellPublic || to.SellPublic
+					sellSeen = to.SellSeen
+				}
+				f.Percent = float64(f.Profit) / float64(from.Sell) * 100
+				f.Age = now.Sub(from.SellSeen)
+				if a := now.Sub(sellSeen); a > f.Age {
+					f.Age = a
+				}
+				out = append(out, f)
 			}
 		}
 	}

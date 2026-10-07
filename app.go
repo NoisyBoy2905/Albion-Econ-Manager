@@ -141,10 +141,10 @@ func (a *App) saveFlips() {
 	}
 	defer file.Close()
 	w := csv.NewWriter(file)
-	w.Write([]string{"item", "quality", "buy_in", "sell_in", "buy_price", "sell_price", "profit_each", "percent", "quantity", "total_profit", "age_minutes"})
+	w.Write([]string{"item", "quality", "buy_in", "sell_in", "sell_mode", "buy_price", "sell_price", "profit_each", "percent", "quantity", "total_profit", "age_minutes"})
 	for _, f := range a.book.Flips(0.04, 6*time.Hour) {
 		w.Write([]string{
-			itemName(f.Item), strconv.Itoa(f.Quality), cityName(f.From), cityName(f.To),
+			itemName(f.Item), strconv.Itoa(f.Quality), cityName(f.From), cityName(f.To), f.Mode,
 			strconv.FormatInt(f.BuyFor, 10), strconv.FormatInt(f.SellFor, 10),
 			strconv.FormatInt(f.Profit, 10), fmt.Sprintf("%.1f", f.Percent),
 			strconv.Itoa(f.Qty), strconv.FormatInt(f.Total, 10),

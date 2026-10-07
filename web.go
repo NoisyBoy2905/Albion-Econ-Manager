@@ -83,6 +83,7 @@ type flipJSON struct {
 	To      string  `json:"to"`
 	Buy     int64   `json:"buy"`
 	Sell    int64   `json:"sell"`
+	Mode    string  `json:"mode"` // "instant" or "list"
 	Profit  int64   `json:"profit"`
 	Percent float64 `json:"percent"`
 	Qty     int     `json:"qty"`
@@ -121,7 +122,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) s
 		}
 		out = append(out, flipJSON{
 			ID: f.Item, Name: itemName(f.Item), Tier: tier(f.Item), Quality: f.Quality,
-			From: cityName(f.From), To: cityName(f.To),
+			From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
 			Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
 			Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
 			AgeMin: int(f.Age.Minutes()),

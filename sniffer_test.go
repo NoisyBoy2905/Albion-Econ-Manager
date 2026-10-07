@@ -200,6 +200,32 @@ func TestMatchStopsWhenNotWorthIt(t *testing.T) {
 	}
 }
 
+func TestListFlipWhenItPaysMore(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBook(filepath.Join(dir, "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+	// Lymhurst: cheap to buy. Caerleon: a weak buy order but a high listing.
+	b.Add([]Order{o("T4_BAG", 1000, "offer", 10)}, "1002", false)
+	b.Add([]Order{o("T4_BAG", 1200, "request", 5), o("T4_BAG", 2000, "offer", 3)}, "3005", false)
+
+	flips := b.Flips(0.04, time.Hour)
+	if len(flips) != 1 {
+		t.Fatalf("expected 1 flip, got %+v", flips)
+	}
+	f := flips[0]
+	// instant into the 1,200 buy order: 1,200 - 4% = 1,152 - 1,000 = 152.
+	// listing at 2,000: 2,000 - 6.5% = 1,869 - 1,000 = 869. Listing wins.
+	if f.Mode != "list" || f.SellFor != 2000 || f.Profit != 869 {
+		t.Fatalf("expected a listing flip at 2,000: %+v", f)
+	}
+	// 10 on offer in Lymhurst, all under the 1,869 you'd net, so all 10.
+	if f.Qty != 10 || f.Total != 8690 {
+		t.Fatalf("wrong listing quantity: %d bags, %d total", f.Qty, f.Total)
+	}
+}
+
 func TestCrafting(t *testing.T) {
 	recipes = map[string]Recipe{
 		"TEST_STAFF":   {Makes: 1, Materials: [][]any{{"TEST_PLANKS", 2.0, 1.0}, {"TEST_ARTEFACT", 1.0, 0.0}}},

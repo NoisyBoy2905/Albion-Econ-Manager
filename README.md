@@ -77,11 +77,14 @@ Instead of trusting the game's message numbers, which change after some updates,
 The orders don't say which city they're in. So when you change zone, the sniffer reads your location from the game (for example `1000` = Lymhurst, `1002` = Lymhurst Market, `3003` = Black Market). It labels the orders with that. City markets are their own zones, so you have to go inside the marketplace building.
 
 **5. Flips (market.go)**
-For each item and quality, it takes the cheapest sell order in one city and the best buy order in another. Then:
+For each item and quality, it buys at the cheapest sell order in one city, then in another city it works out the better of two ways to sell:
 
 ```
-profit = buy order price × (1 − tax) − sell order price
+sell instantly  = best buy order × (1 − tax) − sell order price
+list a sell order = cheapest sell order × (1 − tax − 2.5% listing fee) − sell order price
 ```
+
+Selling instantly dumps into someone else's buy order (handy for the Black Market). Listing a sell order means undercutting the cheapest listing there and waiting for a buyer, which usually pays more but isn't instant. Each flip keeps whichever earns more in total, and the window labels it "sell now" or "list here". The listing quantity is an upper bound, since listing a lot undercuts your own price.
 
 It skips prices older than `-max-age`, because old prices are often already gone.
 

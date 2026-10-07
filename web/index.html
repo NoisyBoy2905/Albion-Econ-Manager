@@ -573,7 +573,7 @@ function renderFlips(s, flips) {
       <td>${esc(f.from)}</td>
       <td>${esc(f.to)}</td>
       <td class="num">${fmt(f.buy)}</td>
-      <td class="num">${fmt(f.sell)}</td>
+      <td class="num">${fmt(f.sell)}<span class="sub">${f.mode === "list" ? "list here" : "sell now"}</span></td>
       <td class="num">+${fmt(f.profit)}<span class="sub">${f.percent.toFixed(0)}%</span></td>
       <td class="num">${f.public ? "?" : fmt(f.qty)}</td>
       <td class="num profit">+${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : ""}</td>
@@ -632,7 +632,7 @@ function renderRoute(s, flips) {
     <div class="path">
       <div class="stop"><div class="city">${esc(top.from)}</div><div class="price">Buy ${fmt(top.qty)} from ${fmt(top.buy)}</div></div>
       <div class="trail"><div class="gain">+${fmt(top.total)}<span>${top.percent.toFixed(0)}% on the first</span></div></div>
-      <div class="stop end"><div class="city">${esc(top.to)}</div><div class="price">Sell from ${fmt(top.sell)}</div></div>
+      <div class="stop end"><div class="city">${esc(top.to)}</div><div class="price">${top.mode === "list" ? "List" : "Sell now"} from ${fmt(top.sell)}</div></div>
     </div>`;
 }
 

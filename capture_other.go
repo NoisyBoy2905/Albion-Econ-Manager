@@ -80,7 +80,8 @@ func main() {
 		o("T5_2H_DUALSWORD", 1, 55000, "request", 3), // buy cheap in Lymhurst, sell here
 	}, "3003", true)
 	app.handle(Message{Kind: msgResponse, Params: map[byte]any{8: "3005"}})
-	app.book.Add([]Order{o("T4_MOUNT_HORSE", 1, 27900, "request", 3), o("T5_2H_HOLYSTAFF", 1, 45900, "offer", 2)}, "3005", true)
+	app.book.Add([]Order{o("T4_MOUNT_HORSE", 1, 27900, "request", 3), o("T5_2H_HOLYSTAFF", 1, 45900, "offer", 2),
+		o("T4_BAG", 1, 4000, "offer", 6)}, "3005", true) // bags list high here: a "list" flip from Lymhurst
 	app.event("scan", "7 orders in Black Market, e.g. Master's Great Holy Staff at 131,000 silver")
 	app.book.AddPublic([]apiPrice{
 		{Item: "T5_BAG", City: "Martlock", Quality: 1, SellMin: 7100, SellDate: time.Now().UTC().Add(-40 * time.Minute).Format("2006-01-02T15:04:05")},
