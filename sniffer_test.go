@@ -417,6 +417,40 @@ func TestDualSwordsFlipAndCraft(t *testing.T) {
 	}
 }
 
+func TestCSVUsesWindowSettings(t *testing.T) {
+	dir := t.TempDir()
+	old, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(old)
+
+	app := NewApp(filepath.Join(dir, "p.json"))
+	app.book.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 5, Type: "offer"}}, "1002", false)
+	app.book.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 2000, Amount: 5, Type: "request"}}, "3003", false)
+
+	// The window polls with non-premium tax (8%) and a 30 minute age.
+	req := httptest.NewRequest("GET", "/api/state?tax=0.08&age=30", nil)
+	req.Host = "127.0.0.1:7356"
+	app.routes().ServeHTTP(httptest.NewRecorder(), req)
+	if app.csvTax != 0.08 || app.csvAge != 30*time.Minute {
+		t.Fatalf("window settings not remembered: tax %v age %v", app.csvTax, app.csvAge)
+	}
+
+	app.saveFlips()
+	data, err := os.ReadFile("flips.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// instant into 2,000 at 8% tax = 1,840 - 1,000 = 840 profit each,
+	// not the 920 you'd get at the hardcoded 4%.
+	text := string(data)
+	if !strings.Contains(text, "sell_mode") {
+		t.Fatal("csv missing sell_mode column")
+	}
+	if !strings.Contains(text, ",instant,") || !strings.Contains(text, ",840,") {
+		t.Fatalf("csv not written with the window's 8%% tax:\n%s", text)
+	}
+}
+
 func TestBatchesStayShort(t *testing.T) {
 	var ids []string
 	for i := 0; i < 500; i++ {

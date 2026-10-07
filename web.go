@@ -184,6 +184,10 @@ func (a *App) routes() http.Handler {
 		if err != nil || fee < 0 || fee > 100000 {
 			fee = 0
 		}
+		// Remember these so the saved flips.csv matches what you're viewing.
+		a.mu.Lock()
+		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
+		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute))
 	})
