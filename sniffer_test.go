@@ -417,6 +417,74 @@ func TestDualSwordsFlipAndCraft(t *testing.T) {
 	}
 }
 
+func TestTier(t *testing.T) {
+	cases := map[string]string{
+		"T4_BAG": "4.0", "T6_2H_HOLYSTAFF": "6.0", "T5_MAIN_SWORD@1": "5.1",
+		"T8_2H_DUALSWORD@3": "8.3", "BAG": "", "T9_X": "", "": "",
+	}
+	for id, want := range cases {
+		if got := tier(id); got != want {
+			t.Errorf("tier(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestItemWeightFallsBackToBase(t *testing.T) {
+	itemWeights = map[string]float64{"T4_BAG": 3.4}
+	defer func() { itemWeights = map[string]float64{} }()
+	if w := itemWeight("T4_BAG"); w != 3.4 {
+		t.Errorf("exact weight = %v, want 3.4", w)
+	}
+	if w := itemWeight("T4_BAG@3"); w != 3.4 { // enchanted, same base weight
+		t.Errorf("enchanted weight = %v, want 3.4", w)
+	}
+	if w := itemWeight("T4_UNKNOWN"); w != 0 {
+		t.Errorf("unknown weight = %v, want 0", w)
+	}
+}
+
+func TestBestPricesSkipHighQuality(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{
+		{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 1, Type: "offer"},
+		{Item: "T4_BAG", Quality: 3, Price: 500, Amount: 1, Type: "offer"}, // cheaper, but not Normal
+	}, "1002", false)
+	cheapest, _ := b.bestPrices(time.Hour)
+	if q, ok := cheapest["T4_BAG"]; !ok || q.Price != 1000 {
+		t.Fatalf("crafting should price from Normal quality only, got %+v", cheapest)
+	}
+}
+
+func TestFlipsSkipStalePrices(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 5, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 2000, Amount: 5, Type: "request"}}, "3003", false)
+	b.Prices[key("T4_BAG", 1, "1002")].SellSeen = time.Now().Add(-2 * time.Hour)
+
+	if flips := b.Flips(0.04, time.Hour); len(flips) != 0 {
+		t.Fatalf("a buy-in price older than maxAge should drop the flip: %+v", flips)
+	}
+	if flips := b.Flips(0.04, 3*time.Hour); len(flips) != 1 {
+		t.Fatalf("within maxAge the flip should appear: %+v", flips)
+	}
+}
+
+func TestAllNewestFirstAndLimited(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 1, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T5_BAG", Quality: 1, Price: 2000, Amount: 1, Type: "offer"}}, "1002", false)
+	b.Prices[key("T4_BAG", 1, "1002")].SellSeen = time.Now().Add(-90 * time.Minute)
+
+	// Only the fresh row is within a 1-hour window.
+	if rows := b.All(time.Hour, 100); len(rows) != 1 || rows[0].ID != "T5_BAG" {
+		t.Fatalf("All should drop the stale row: %+v", rows)
+	}
+	// The limit is respected even when both are fresh.
+	if rows := b.All(3*time.Hour, 1); len(rows) != 1 {
+		t.Fatalf("All should respect the limit, got %d rows", len(rows))
+	}
+}
+
 func TestPlanTrips(t *testing.T) {
 	fj := func(from, to, name string, weight float64, qty int, total, cost int64) flipJSON {
 		return flipJSON{From: from, To: to, Name: name, Weight: weight, Qty: qty, Total: total, Cost: cost}
