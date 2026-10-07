@@ -298,6 +298,29 @@ func TestCrafting(t *testing.T) {
 	}
 }
 
+func TestCraftingShowsQualitySpread(t *testing.T) {
+	recipes = map[string]Recipe{
+		"TEST_STAFF": {Makes: 1, Materials: [][]any{{"TEST_PLANKS", 2.0, 1.0}}},
+	}
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, q int, price int64, kind string) Order {
+		return Order{Item: item, Quality: q, Price: price, Amount: 1, Type: kind}
+	}
+	b.Add([]Order{o("TEST_PLANKS", 1, 100, "offer"),
+		o("TEST_STAFF", 1, 1000, "offer"), // Normal listing
+		o("TEST_STAFF", 2, 1800, "offer"), // Good listing, the upside
+	}, "1002", false)
+
+	c := b.Crafts(0.04, 0.2, 0, time.Hour)[0]
+	if len(c.Qualities) != 2 {
+		t.Fatalf("expected Normal + Good qualities, got %+v", c.Qualities)
+	}
+	if c.Qualities[0].Quality != 1 || c.Qualities[0].List != 1000 ||
+		c.Qualities[1].Quality != 2 || c.Qualities[1].List != 1800 {
+		t.Fatalf("wrong quality spread: %+v", c.Qualities)
+	}
+}
+
 func TestStationFee(t *testing.T) {
 	recipes = map[string]Recipe{
 		"TEST_STAFF": {Makes: 1, Value: 2048, Materials: [][]any{{"TEST_PLANKS", 20.0, 1.0}}},

@@ -65,6 +65,43 @@ type Material struct {
 	City  string `json:"city"`
 }
 
+// CraftQuality is what the finished item sells for at one quality level, so
+// you can see the upside from crafting up (the profit is still worked out at
+// Normal, since you can't count on a higher quality coming out).
+type CraftQuality struct {
+	Quality int   `json:"quality"`
+	Instant int64 `json:"instant"` // best buy order at this quality
+	List    int64 `json:"list"`    // cheapest sell order at this quality
+}
+
+// finishedQualities finds, for each item, the best buy order and cheapest
+// sell order at every quality level in one pass.
+func (b *Book) finishedQualities(maxAge time.Duration) map[string]map[int][2]int64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	now := time.Now()
+	out := map[string]map[int][2]int64{}
+	for _, p := range b.Prices {
+		if p.City == "" {
+			continue
+		}
+		m := out[p.Item]
+		if m == nil {
+			m = map[int][2]int64{}
+			out[p.Item] = m
+		}
+		v := m[p.Quality]
+		if p.Buy > 0 && now.Sub(p.BuySeen) <= maxAge && p.Buy > v[0] {
+			v[0] = p.Buy
+		}
+		if p.Sell > 0 && now.Sub(p.SellSeen) <= maxAge && (v[1] == 0 || p.Sell < v[1]) {
+			v[1] = p.Sell
+		}
+		m[p.Quality] = v
+	}
+	return out
+}
+
 type Craft struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
@@ -80,8 +117,9 @@ type Craft struct {
 	ListProfit int64      `json:"listProfit"` // listing a sell order, after tax and fee
 	Percent    float64    `json:"percent"`
 	AgeMin     int        `json:"ageMin"`
-	Public     bool       `json:"public"` // uses at least one public price
-	Materials  []Material `json:"materials"`
+	Public     bool           `json:"public"` // uses at least one public price
+	Materials  []Material     `json:"materials"`
+	Qualities  []CraftQuality `json:"qualities"` // what it sells for at each quality, if more than Normal seen
 }
 
 const setupFee = 0.025
@@ -92,6 +130,7 @@ const setupFee = 0.025
 // stationFee is the silver per 100 nutrition the station owner charges.
 func (b *Book) Crafts(tax, returnRate, stationFee float64, maxAge time.Duration) []Craft {
 	cheapest, highest := b.bestPrices(maxAge)
+	finished := b.finishedQualities(maxAge)
 	now := time.Now()
 	out := []Craft{}
 
@@ -170,6 +209,16 @@ func (b *Book) Crafts(tax, returnRate, stationFee float64, maxAge time.Duration)
 		}
 		if per > 0 {
 			c.Percent = float64(best) / float64(per) * 100
+		}
+		if fq := finished[id]; fq != nil {
+			for q := 1; q <= 5; q++ {
+				if v, ok := fq[q]; ok && (v[0] > 0 || v[1] > 0) {
+					c.Qualities = append(c.Qualities, CraftQuality{Quality: q, Instant: v[0], List: v[1]})
+				}
+			}
+			if len(c.Qualities) < 2 { // only worth showing when there's more than Normal
+				c.Qualities = nil
+			}
 		}
 		out = append(out, c)
 	}
