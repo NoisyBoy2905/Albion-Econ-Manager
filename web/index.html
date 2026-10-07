@@ -186,6 +186,14 @@ tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14
   .trail { height: 44px; }
   .trail .gain { left: 0; transform: translateY(-50%); padding-left: 0; }
 }
+tr.price.clickable { cursor: pointer; }
+tr.price.clickable:hover td { background: var(--panel); }
+tr.chart-row td { padding: 0 14px 16px; }
+.chart { padding: 8px 0 2px; }
+.chart svg { width: 100%; height: 160px; display: block; }
+.chart-legend { display: flex; gap: 18px; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -260,11 +268,15 @@ tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14
     </div>
 
     <div id="panel-prices" role="tabpanel" aria-labelledby="tab-prices" hidden>
+      <div class="tools">
+        <button id="hist-export">Export history</button>
+        <span id="hist-status" class="note" style="margin:0"></span>
+      </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell instantly</th><th class="num">Age</th></tr></thead>
         <tbody id="prows"></tbody>
       </table></div>
-      <p class="note">Every price the sniffer has seen, newest first. Cheapest to buy is the lowest sell order; best to sell instantly is the highest buy order. The number under each price is how many are on offer at it.</p>
+      <p class="note">Every price the sniffer has seen, newest first. Cheapest to buy is the lowest sell order; best to sell instantly is the highest buy order. The number under each price is how many are on offer at it. Click a row to see its price over time. <b>Export history</b> saves everything seen to <code>history-export.csv</code>.</p>
     </div>
 
     <div id="panel-crafts" role="tabpanel" aria-labelledby="tab-crafts" hidden>
@@ -370,6 +382,8 @@ const ago = m => m < 1 ? "now" : m < 60 ? m + "m" : Math.floor(m / 60) + "h";
 const flipKey = f => `${f.id}|${f.quality}|${f.from}|${f.to}`;
 
 let tab = "flips", latest = null;
+const chartOpen = new Set(); // price-row keys with an open chart
+const chartData = {};        // key -> history points, fetched on click
 let sortKey = "total", sortDir = -1;
 let csortKey = "best", csortDir = -1;
 let open = new Set();          // crafting rows showing their materials
@@ -553,17 +567,26 @@ function filteredCrafts(q) {
     .sort(by(csortKey, csortDir));
 }
 
+function priceKey(p) { return p.id + "|" + p.quality + "|" + p.cityId; }
+
 function renderPrices(id, rows, q) {
   const cell = (price, amount, pub) => price
     ? `${fmt(price)}<span class="sub">${pub ? '<span class="tag">public</span>' : amount ? fmt(amount) + " on offer" : ""}</span>` : "–";
-  $(id).innerHTML = rows.length ? rows.map(p => `
-    <tr>
+  const chartable = id === "prows"; // only the All prices tab opens charts
+  $(id).innerHTML = rows.length ? rows.map(p => {
+    const k = priceKey(p);
+    const row = `
+    <tr class="price${chartable ? " clickable" : ""}" data-key="${esc(k)}" ${chartable ? 'tabindex="0"' : ""}>
       <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="id">${QUALITY[p.quality] || "Quality " + p.quality}, ${esc(p.id)}</span></td>
       <td>${esc(p.city)}</td>
       <td class="num">${cell(p.sell, p.sellAmount, p.sellPublic)}</td>
       <td class="num">${cell(p.buy, p.buyAmount, p.buyPublic)}</td>
       <td class="num ${p.ageMin >= 60 ? "stale" : ""}">${ago(p.ageMin)}</td>
-    </tr>`).join("")
+    </tr>`;
+    const chart = chartable && chartOpen.has(k)
+      ? `<tr class="chart-row"><td colspan="5">${chartSVG(chartData[k], p)}</td></tr>` : "";
+    return row + chart;
+  }).join("")
     : `<tr><td colspan="5" class="empty">${q ? "Nothing matches your search." : "No prices yet. Go into a marketplace and open the market."}</td></tr>`;
 }
 
@@ -764,6 +787,80 @@ function toggleRow(e) {
 }
 $("crows").addEventListener("click", toggleRow);
 $("crows").addEventListener("keydown", toggleRow);
+
+// ---- price history chart ----
+async function togglePriceChart(e) {
+  const tr = e.target.closest("tr.price");
+  if (!tr || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  const k = tr.dataset.key;
+  if (chartOpen.has(k)) {
+    chartOpen.delete(k);
+    render();
+    return;
+  }
+  const [item, quality, city] = k.split("|");
+  try {
+    const res = await fetch(`/api/history?item=${encodeURIComponent(item)}&quality=${quality}&city=${encodeURIComponent(city)}`);
+    chartData[k] = await res.json();
+  } catch (err) {
+    chartData[k] = [];
+  }
+  chartOpen.add(k);
+  render();
+}
+$("prows").addEventListener("click", togglePriceChart);
+$("prows").addEventListener("keydown", togglePriceChart);
+$("hist-export").addEventListener("click", async () => {
+  $("hist-status").textContent = "Exporting…";
+  try {
+    const res = await fetch("/api/history/export", {method: "POST"});
+    $("hist-status").textContent = res.ok ? "Saved history-export.csv next to the sniffer." : "Export failed.";
+  } catch (e) { $("hist-status").textContent = "Export failed."; }
+});
+
+// chartSVG draws cheapest-sell (muted) and best-buy (gold) prices over time
+// as an inline SVG, no chart library.
+function chartSVG(points, p) {
+  points = points || [];
+  const sell = points.filter(d => d.side === "sell").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
+  const buy = points.filter(d => d.side === "buy").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
+  if (!sell.length && !buy.length) {
+    return `<p class="note" style="margin:0">No price history yet for ${esc(p.name)} in ${esc(p.city)}. It builds up as you keep browsing.</p>`;
+  }
+  const all = sell.concat(buy);
+  const W = 640, H = 160, padX = 48, padY = 16;
+  let tMin = Math.min(...all.map(d => d.t)), tMax = Math.max(...all.map(d => d.t));
+  let vMin = Math.min(...all.map(d => d.v)), vMax = Math.max(...all.map(d => d.v));
+  if (tMax === tMin) { tMax = tMin + 1; }
+  if (vMax === vMin) { vMax = vMin + 1; }
+  const x = t => padX + (t - tMin) / (tMax - tMin) * (W - padX - 8);
+  const y = v => H - padY - (v - vMin) / (vMax - vMin) * (H - padY * 2);
+  const line = (pts, color) => {
+    if (!pts.length) return "";
+    if (pts.length === 1) return `<circle cx="${x(pts[0].t).toFixed(1)}" cy="${y(pts[0].v).toFixed(1)}" r="3" fill="${color}"/>`;
+    const d = pts.map(pt => `${x(pt.t).toFixed(1)},${y(pt.v).toFixed(1)}`).join(" ");
+    return `<polyline points="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+  };
+  const gold = "var(--gold)", muted = "var(--muted)", line2 = "var(--line)", text = "var(--muted)";
+  const yLabel = v => `<text x="${padX - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="${text}">${fmt(Math.round(v))}</text>`;
+  const when = t => new Date(t).toLocaleString("en-GB", {day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"});
+  return `
+  <div class="chart">
+    <div class="chart-legend">
+      <span><i style="background:${muted}"></i>Cheapest to buy (sell orders)</span>
+      <span><i style="background:${gold}"></i>Best to sell (buy orders)</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Price over time">
+      <line x1="${padX}" y1="${padY}" x2="${padX}" y2="${H - padY}" stroke="${line2}"/>
+      <line x1="${padX}" y1="${H - padY}" x2="${W - 8}" y2="${H - padY}" stroke="${line2}"/>
+      ${yLabel(vMax)}${yLabel(vMin)}
+      ${line(sell, muted)}
+      ${line(buy, gold)}
+    </svg>
+    <div class="chart-axis"><span>${esc(when(tMin))}</span><span>${esc(when(tMax))}</span></div>
+  </div>`;
+}
 
 $("alerts").addEventListener("change", () => {
   if ($("alerts").checked && "Notification" in window && Notification.permission === "default") {

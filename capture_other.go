@@ -100,6 +100,11 @@ func main() {
 		app.book.Add([]Order{o("T8_BAG", 1, 61000, "offer", 3)}, "1002", true)
 		app.book.Add([]Order{o("T8_BAG", 1, 88000, "request", 3)}, "3003", true)
 		app.event("scan", "1 order in Black Market, e.g. Elder's Bag at 88,000 silver")
+		// Keep re-scanning a bag so the price-history chart has a line to draw.
+		for _, pr := range []int64{2300, 2000, 2450, 2250, 2600} {
+			time.Sleep(3 * time.Second)
+			app.book.Add([]Order{o("T4_BAG", 1, pr, "offer", 4)}, "1002", true)
+		}
 	}()
 
 	for {
