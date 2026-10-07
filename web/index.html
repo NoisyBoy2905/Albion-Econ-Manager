@@ -227,6 +227,7 @@ tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14
     <div id="panel-flips" role="tabpanel" aria-labelledby="tab-flips">
       <div class="tools">
         <label>Min total profit <input type="number" id="min" min="0" step="1000" value="0" aria-label="Minimum total profit"></label>
+        <label><input type="checkbox" id="fresh"> Prefer fresh prices</label>
         <span class="alert-set">
           <label><input type="checkbox" id="alerts"> Alert me when a new flip makes over</label>
           <input type="number" id="alert-at" min="0" step="5000" value="50000" aria-label="Alert threshold">
@@ -375,7 +376,7 @@ let open = new Set();          // crafting rows showing their materials
 let seen = null;               // flips that were already there, so alerts only fire for new ones
 let fresh = new Set();         // rows to highlight briefly
 
-const SETTINGS = ["region", "premium", "age", "min", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "budget"];
+const SETTINGS = ["region", "premium", "age", "min", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "budget", "fresh"];
 function remember() {
   try {
     const s = {tab};
@@ -407,7 +408,7 @@ async function refresh() {
   const tax = $("premium").checked ? 0.04 : 0.08;
   let data;
   try {
-    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}`);
+    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}&fresh=${$("fresh").checked ? 1 : 0}`);
     data = await res.json();
   } catch (e) {
     // only a failed request means the sniffer isn't running
@@ -577,7 +578,7 @@ function renderFlips(s, flips) {
       <td class="num">+${fmt(f.profit)}<span class="sub">${f.percent.toFixed(0)}%</span></td>
       <td class="num">${f.public ? "?" : fmt(f.qty)}</td>
       <td class="num profit">+${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : ""}</td>
-      <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}${f.public ? '<span class="sub"><span class="tag">public</span></span>' : ""}</td>
+      <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}<span class="sub">${Math.round(f.confidence * 100)}% sure${f.public ? ' · <span class="tag">public</span>' : ""}</span></td>
     </tr>`).join("")
     : `<tr><td colspan="9" class="empty">${s.flips.length ? "No flips match these filters." : "No flips yet. They appear once you've checked the same items in two places."}</td></tr>`;
 }
@@ -773,7 +774,7 @@ $("alerts").addEventListener("change", () => {
 ["search", "min", "alert-at"].forEach(id => $(id).addEventListener("input", () => { remember(); latest && render(); }));
 ["cat", "profitable", "alerts"].forEach(id => $(id).addEventListener("change", () => { remember(); latest && render(); }));
 // carry and budget feed the server-side trip planner, so changing them refetches.
-["premium", "age", "rr", "fee"].forEach(id => $(id).addEventListener("change", () => { remember(); refresh(); }));
+["premium", "age", "rr", "fee", "fresh"].forEach(id => $(id).addEventListener("change", () => { remember(); refresh(); }));
 // carry and budget feed the server-side trip planner, so changing them refetches.
 ["carry", "budget"].forEach(id => $(id).addEventListener("input", () => { remember(); refresh(); }));
 

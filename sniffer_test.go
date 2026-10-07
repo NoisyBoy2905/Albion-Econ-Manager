@@ -156,7 +156,7 @@ func TestFlips(t *testing.T) {
 	b.Add(parseOrders([]string{orderA, orderB, orderC}), "3005", true)
 	b.Add(parseOrders([]string{orderBM}), "3003", true)
 
-	flips := b.Flips(0.04, time.Hour)
+	flips := b.Flips(0.04, time.Hour, false)
 	if len(flips) != 1 {
 		t.Fatalf("expected 1 flip, got %+v", flips)
 	}
@@ -211,7 +211,7 @@ func TestListFlipWhenItPaysMore(t *testing.T) {
 	b.Add([]Order{o("T4_BAG", 1000, "offer", 10)}, "1002", false)
 	b.Add([]Order{o("T4_BAG", 1200, "request", 5), o("T4_BAG", 2000, "offer", 3)}, "3005", false)
 
-	flips := b.Flips(0.04, time.Hour)
+	flips := b.Flips(0.04, time.Hour, false)
 	if len(flips) != 1 {
 		t.Fatalf("expected 1 flip, got %+v", flips)
 	}
@@ -224,6 +224,26 @@ func TestListFlipWhenItPaysMore(t *testing.T) {
 	// 10 on offer in Lymhurst, all under the 1,869 you'd net, so all 10.
 	if f.Qty != 10 || f.Total != 8690 {
 		t.Fatalf("wrong listing quantity: %d bags, %d total", f.Qty, f.Total)
+	}
+}
+
+func TestFreshFirstReranksByAge(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: 1, Type: kind}
+	}
+	b.Add([]Order{o("T4_BAG", 1000, "offer"), o("T5_BAG", 1000, "offer")}, "1002", false)
+	b.Add([]Order{o("T4_BAG", 2100, "request"), o("T5_BAG", 1460, "request")}, "3003", false)
+	// Age the bigger T4_BAG flip until it's nearly past the 1-hour limit.
+	old := time.Now().Add(-57 * time.Minute)
+	b.Prices[key("T4_BAG", 1, "1002")].SellSeen = old
+	b.Prices[key("T4_BAG", 1, "3003")].BuySeen = old
+
+	if byTotal := b.Flips(0.04, time.Hour, false); byTotal[0].Item != "T4_BAG" {
+		t.Fatalf("default sort should put the bigger total first: %+v", byTotal)
+	}
+	if fresh := b.Flips(0.04, time.Hour, true); fresh[0].Item != "T5_BAG" {
+		t.Fatalf("freshFirst should rank the fresh, smaller flip first: %+v", fresh)
 	}
 }
 
@@ -295,7 +315,7 @@ func TestRecordingRoundTrip(t *testing.T) {
 func TestStateNeverSendsNull(t *testing.T) {
 	recipes = map[string]Recipe{}
 	app := NewApp(filepath.Join(t.TempDir(), "p.json"))
-	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour, 1500, 1000000))
+	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour, 1500, 1000000, false))
 	for _, k := range []string{`"flips":null`, `"crafts":null`, `"trips":null`, `"events":null`, `"all":null`} {
 		if strings.Contains(string(data), k) {
 			t.Fatalf("window would break on %s", k)
@@ -335,7 +355,7 @@ func TestPublicPrices(t *testing.T) {
 	if st.Running || st.Error != "" || st.Done != st.Total || len(asked) != st.Total {
 		t.Fatalf("download didn't finish right: %+v", st)
 	}
-	flips := app.book.Flips(0.04, time.Hour)
+	flips := app.book.Flips(0.04, time.Hour, false)
 	if len(flips) != 1 || flips[0].BuyFor != 4000 || flips[0].SellFor != 5056 || !flips[0].Public {
 		t.Fatalf("expected own buy price + public Black Market price, got %+v", flips)
 	}
@@ -386,7 +406,7 @@ func TestDualSwordsFlipAndCraft(t *testing.T) {
 	b.Add([]Order{o("T5_2H_DUALSWORD", 55000, "request", 3)}, "3003", false)
 
 	var f Flip
-	for _, x := range b.Flips(0.04, time.Hour) {
+	for _, x := range b.Flips(0.04, time.Hour, false) {
 		if x.Item == "T5_2H_DUALSWORD" {
 			f = x
 		}
@@ -486,10 +506,10 @@ func TestFlipsSkipStalePrices(t *testing.T) {
 	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 2000, Amount: 5, Type: "request"}}, "3003", false)
 	b.Prices[key("T4_BAG", 1, "1002")].SellSeen = time.Now().Add(-2 * time.Hour)
 
-	if flips := b.Flips(0.04, time.Hour); len(flips) != 0 {
+	if flips := b.Flips(0.04, time.Hour, false); len(flips) != 0 {
 		t.Fatalf("a buy-in price older than maxAge should drop the flip: %+v", flips)
 	}
-	if flips := b.Flips(0.04, 3*time.Hour); len(flips) != 1 {
+	if flips := b.Flips(0.04, 3*time.Hour, false); len(flips) != 1 {
 		t.Fatalf("within maxAge the flip should appear: %+v", flips)
 	}
 }

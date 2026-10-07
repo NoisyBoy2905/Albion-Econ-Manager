@@ -23,6 +23,7 @@ In the window you can:
 - search items or cities
 - switch Premium on or off (4% or 8% tax)
 - choose how old prices can be
+- turn on **Prefer fresh prices** to rank flips built on older prices lower (each flip shows how sure it is, based on how recently the prices were seen)
 - set a minimum total profit
 - click any column heading to sort by it
 

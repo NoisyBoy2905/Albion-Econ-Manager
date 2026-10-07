@@ -148,7 +148,7 @@ func (a *App) saveFlips() {
 	tax, age := a.csvTax, a.csvAge
 	a.mu.Unlock()
 	w.Write([]string{"item", "quality", "buy_in", "sell_in", "sell_mode", "buy_price", "sell_price", "profit_each", "percent", "quantity", "total_profit", "age_minutes"})
-	for _, f := range a.book.Flips(tax, age) {
+	for _, f := range a.book.Flips(tax, age, false) {
 		w.Write([]string{
 			itemName(f.Item), strconv.Itoa(f.Quality), cityName(f.From), cityName(f.To), f.Mode,
 			strconv.FormatInt(f.BuyFor, 10), strconv.FormatInt(f.SellFor, 10),

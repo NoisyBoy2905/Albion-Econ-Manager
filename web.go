@@ -87,11 +87,12 @@ type flipJSON struct {
 	Profit  int64   `json:"profit"`
 	Percent float64 `json:"percent"`
 	Qty     int     `json:"qty"`
-	Total   int64   `json:"total"`
-	Cost    int64   `json:"cost"`   // silver to buy all of them
-	Weight  float64 `json:"weight"` // kg for one
-	Public  bool    `json:"public"`
-	AgeMin  int     `json:"ageMin"`
+	Total      int64   `json:"total"`
+	Cost       int64   `json:"cost"`       // silver to buy all of them
+	Weight     float64 `json:"weight"`     // kg for one
+	Public     bool    `json:"public"`
+	Confidence float64 `json:"confidence"` // 1 = just seen, 0 = at the age limit
+	AgeMin     int     `json:"ageMin"`
 }
 
 type stateJSON struct {
@@ -114,8 +115,8 @@ type stateJSON struct {
 	Events     []Event       `json:"events"`
 }
 
-func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64) stateJSON {
-	flips := a.book.Flips(tax, maxAge)
+func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool) stateJSON {
+	flips := a.book.Flips(tax, maxAge, freshFirst)
 	out := make([]flipJSON, 0, len(flips))
 	for i, f := range flips {
 		if i == 300 {
@@ -126,7 +127,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, c
 			From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
 			Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
 			Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
-			AgeMin: int(f.Age.Minutes()),
+			Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
 		})
 	}
 	trips := planTrips(out, carryKg, budget)
@@ -194,12 +195,13 @@ func (a *App) routes() http.Handler {
 		if err != nil || budget < 0 {
 			budget = 0
 		}
+		freshFirst := q.Get("fresh") == "1"
 		// Remember these so the saved flips.csv matches what you're viewing.
 		a.mu.Lock()
 		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
 		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget))
+		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst))
 	})
 
 	mux.HandleFunc("/api/record/start", func(w http.ResponseWriter, r *http.Request) {

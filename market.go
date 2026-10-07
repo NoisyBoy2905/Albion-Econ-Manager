@@ -250,11 +250,12 @@ type Flip struct {
 	Mode     string // "instant" = sell into buy orders, "list" = undercut sell orders
 	Profit   int64  // profit on the first one
 	Percent  float64
-	Qty      int   // how many you can flip before it stops being worth it
-	Total    int64 // profit on all of them
-	Cost     int64 // silver needed to buy all of them
-	Public   bool  // uses a public price, so the quantity isn't known
-	Age      time.Duration
+	Qty        int     // how many you can flip before it stops being worth it
+	Total      int64   // profit on all of them
+	Cost       int64   // silver needed to buy all of them
+	Public     bool    // uses a public price, so the quantity isn't known
+	Confidence float64 // 1 for just-seen prices, falling to 0 at the age limit
+	Age        time.Duration
 }
 
 // match walks both order lists: buy the cheapest sell orders and sell them
@@ -308,8 +309,9 @@ func listFill(sells []Level, proceeds int64) (qty int, total, cost int64) {
 // Flips: buy at the cheapest sell orders in one city, then in another city
 // either sell instantly to the best buy orders (like the Black Market) or
 // list your own sell order at the going rate. Each flip keeps whichever of
-// the two earns more in total.
-func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
+// the two earns more in total. When freshFirst is set, flips built on older
+// prices are ranked lower, so a stale outlier doesn't sit at the top.
+func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool) []Flip {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := time.Now()
@@ -384,11 +386,20 @@ func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
 				if a := now.Sub(sellSeen); a > f.Age {
 					f.Age = a
 				}
+				f.Confidence = 1 - float64(f.Age)/float64(maxAge)
+				if f.Confidence < 0 {
+					f.Confidence = 0
+				}
 				out = append(out, f)
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Total > out[j].Total })
+	sort.Slice(out, func(i, j int) bool {
+		if freshFirst {
+			return float64(out[i].Total)*out[i].Confidence > float64(out[j].Total)*out[j].Confidence
+		}
+		return out[i].Total > out[j].Total
+	})
 	return out
 }
 
