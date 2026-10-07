@@ -231,6 +231,34 @@ func (a *App) routes() http.Handler {
 		a.event("zone", "Downloading public prices from the Albion Data Project")
 		go a.fetchPublic(base, 1100*time.Millisecond)
 	})
+	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		quality, _ := strconv.Atoi(q.Get("quality"))
+		path := ""
+		if a.hist != nil {
+			a.hist.flush() // so the chart sees the latest buffered records
+			path = a.hist.path
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(pointsFor(path, q.Get("item"), quality, q.Get("city")))
+	})
+	mux.HandleFunc("/api/history/export", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "use POST", http.StatusMethodNotAllowed)
+			return
+		}
+		if a.hist == nil {
+			http.Error(w, "history isn't being recorded", http.StatusServiceUnavailable)
+			return
+		}
+		a.hist.flush()
+		n, err := exportHistory(a.hist.path, "history-export.csv")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		a.event("scan", "Exported %d history rows to history-export.csv", n)
+	})
 	mux.HandleFunc("/api/record/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "use POST", http.StatusMethodNotAllowed)

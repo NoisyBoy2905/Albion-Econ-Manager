@@ -40,6 +40,7 @@ type App struct {
 	rec        *Recorder
 	lastRec    recordingJSON
 	public     Public
+	hist       *History // price history log, nil if not recording
 	csvTax     float64       // tax and age from the last window poll, so the
 	csvAge     time.Duration // flips.csv matches what you're looking at
 }

@@ -16,6 +16,9 @@ func main() {
 	replay := flag.String("replay", "", "print every message in a recording")
 	find := flag.Float64("find", 0, "with -replay: only show messages containing this number")
 	flag.Parse()
+	if runExportHistoryFlag() {
+		return
+	}
 	if *replay != "" && *find != 0 {
 		if err := findInRecording(*replay, *find); err != nil {
 			fmt.Println(err)
@@ -38,7 +41,10 @@ func main() {
 	loadItemNames()
 	loadRecipes()
 	os.Remove("demo-prices.json")
+	os.Remove("demo-history.jsonl")
 	app := NewApp("demo-prices.json")
+	h := NewHistory("demo-history.jsonl")
+	app.hist, app.book.hist = h, h
 	flushOnExit(app)
 	app.adapters = 2
 	addr, err := app.serve(*port)

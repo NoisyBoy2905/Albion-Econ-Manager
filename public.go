@@ -201,6 +201,8 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 					e.Sell, e.SellSeen, e.SellPublic = r.SellMin, t, true
 					e.SellLevels = []Level{{r.SellMin, 1}}
 					fresh = true
+					b.hist.record(HistoryRecord{Time: t.Format(time.RFC3339), Item: r.Item, Quality: r.Quality,
+						City: city, Side: "sell", Price: r.SellMin, Source: "public"})
 				}
 			}
 		}
@@ -213,6 +215,8 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 					e.Buy, e.BuySeen, e.BuyPublic = r.BuyMax, t, true
 					e.BuyLevels = []Level{{r.BuyMax, 1}}
 					fresh = true
+					b.hist.record(HistoryRecord{Time: t.Format(time.RFC3339), Item: r.Item, Quality: r.Quality,
+						City: city, Side: "buy", Price: r.BuyMax, Source: "public"})
 				}
 			}
 		}
@@ -221,6 +225,7 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 			added++
 		}
 	}
+	b.hist.flush()
 	return added
 }
 

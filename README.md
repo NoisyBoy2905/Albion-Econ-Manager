@@ -116,6 +116,14 @@ The **Get public prices** button downloads prices for about 10,000 items in ever
 - Public prices are marked **public** in the window. They can be hours old, and they don't say how many are on offer, so flips using them count 1 item. Check them in game before buying lots.
 - Your own sniffed prices always win when they're newer.
 
+## Price history
+
+As well as keeping the latest price, the sniffer appends every price it stores to `history.jsonl`, one JSON object per line (append-only, never rewritten). Each line has the time, item, quality, city (zone ID), side (`sell` or `buy`), price, amount, the full list of order levels (for your own scans), and the source (`own` or `public`). It skips a line if nothing changed since the last one for that item/quality/city/side, so it doesn't fill with duplicates. It's meant to be read later by other projects, like a market simulator.
+
+- **Export history** (button in the window) writes `history-export.csv` next to the sniffer, one row per record, with the levels as a short text like `2100x4;2600x10`.
+- From a terminal, `albion-sniffer.exe -export-history` does the same without opening the window.
+- In the **All prices** tab, click any row to see a small chart of that item's cheapest sell and best buy price over time in that city.
+
 ## Recording game traffic
 
 The **Record game traffic** button saves 2 minutes of raw game packets to a `.albrec` file in the sniffer's folder. It's for finding new things the sniffer could read, like your carry weight. Write down a number you can see in game (like your inventory weight), record, and then search the recording for that number.

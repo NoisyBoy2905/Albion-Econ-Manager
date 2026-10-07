@@ -603,6 +603,49 @@ func TestCSVUsesWindowSettings(t *testing.T) {
 	}
 }
 
+func TestHistoryRecordsExportAndPoints(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+	h := NewHistory(path)
+
+	b := NewBook(filepath.Join(dir, "p.json"))
+	b.hist = h
+	// Two scans of the same item: the price changes, then repeats.
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 4, Type: "offer"},
+		{Item: "T4_BAG", Quality: 1, Price: 1200, Amount: 10, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 900, Amount: 2, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 900, Amount: 2, Type: "offer"}}, "1002", false) // identical: deduped
+	h.Close()
+
+	// pointsFor returns one record per real change (two sell prices), none for
+	// the duplicate scan.
+	pts := pointsFor(path, "T4_BAG", 1, "1002")
+	if len(pts) != 2 {
+		t.Fatalf("expected 2 history points (duplicate deduped), got %d: %+v", len(pts), pts)
+	}
+	if pts[0].Side != "sell" || pts[0].Price != 1000 || pts[1].Price != 900 {
+		t.Fatalf("wrong history points: %+v", pts)
+	}
+	if pointsFor(path, "T4_BAG", 1, "3003") != nil && len(pointsFor(path, "T4_BAG", 1, "3003")) != 0 {
+		t.Fatal("city filter should exclude other cities")
+	}
+
+	// Export to CSV with the compact levels text.
+	csvPath := filepath.Join(dir, "out.csv")
+	n, err := exportHistory(path, csvPath)
+	if err != nil || n != 2 {
+		t.Fatalf("export wrote %d rows, err %v", n, err)
+	}
+	data, _ := os.ReadFile(csvPath)
+	text := string(data)
+	if !strings.Contains(text, "1000x4;1200x10") {
+		t.Fatalf("levels not formatted as expected:\n%s", text)
+	}
+	if !strings.Contains(text, "time,item,quality,city,side,price,amount,levels,source") {
+		t.Fatalf("missing header:\n%s", text)
+	}
+}
+
 func TestBatchesStayShort(t *testing.T) {
 	var ids []string
 	for i := 0; i < 500; i++ {

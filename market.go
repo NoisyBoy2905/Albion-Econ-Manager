@@ -61,8 +61,8 @@ func looksLikePlace(s string) bool {
 
 // Level is one price on the order list and how many are on offer at it.
 type Level struct {
-	Price  int64
-	Amount int
+	Price  int64 `json:"price"`
+	Amount int   `json:"amount"`
 }
 
 // Price holds the orders we've seen for one item, quality and city.
@@ -89,6 +89,7 @@ type Book struct {
 	Prices    map[string]*Price
 	path      string
 	saveTimer *time.Timer // a pending debounced save, if any
+	hist      *History    // price history log, nil if not recording
 }
 
 func NewBook(path string) *Book {
@@ -202,7 +203,19 @@ func (b *Book) Add(orders []Order, city string, divide bool) {
 			e.BuyPublic = false
 			e.Buy, e.BuySeen = e.BuyLevels[0].Price, now
 		}
+		if b.hist != nil {
+			ts := now.Format(time.RFC3339)
+			if len(p.sell) > 0 {
+				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
+					Side: "sell", Price: e.Sell, Amount: e.SellLevels[0].Amount, Levels: e.SellLevels, Source: "own"})
+			}
+			if len(p.buy) > 0 {
+				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
+					Side: "buy", Price: e.Buy, Amount: e.BuyLevels[0].Amount, Levels: e.BuyLevels, Source: "own"})
+			}
+		}
 	}
+	b.hist.flush() // nil-safe; writes this page's records to disk
 	b.scheduleSave()
 }
 

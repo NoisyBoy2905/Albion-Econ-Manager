@@ -15,6 +15,7 @@ func flushOnExit(app *App) {
 	go func() {
 		<-c
 		app.book.Flush()
+		app.hist.Close()
 		os.Exit(0)
 	}()
 }
