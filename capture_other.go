@@ -71,6 +71,8 @@ func main() {
 		// Dual Swords for sale, plus the bars and leather to craft them.
 		o("T5_2H_DUALSWORD", 1, 48000, "offer", 2),
 		o("T5_METALBAR", 1, 1100, "offer", 800), o("T5_LEATHER", 1, 1100, "offer", 500),
+		// Cheap ore and lower-tier bars, so crafting the bars beats buying them.
+		o("T5_ORE", 1, 200, "offer", 900), o("T4_METALBAR", 1, 300, "offer", 600),
 	}, "1002", true)
 	if os.Getenv("DEMO_ONE_CITY") != "" { // like a first visit: one market, no flips yet
 		for {

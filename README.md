@@ -95,7 +95,7 @@ The market sends a page of orders, each with a price and an amount. The sniffer 
 
 **7. Crafting (crafting.go)**
 The game's own data has every recipe, for example 20 planks + 12 cloth for a Great Holy Staff. For each recipe the sniffer:
-1. finds the cheapest price seen for each material in any city
+1. finds the cheapest way to get each material: the cheapest price seen in any city, or the cost of crafting that material from its own materials (following the recipes down, e.g. planks from wood), whichever is less. Materials it's cheaper to craft are marked in the window
 2. takes off the **return rate**, the share of materials the crafting station gives back (artefacts never come back)
 3. compares that cost with what the item sells for: instantly to a buy order, or by listing a sell order (minus the 2.5% listing fee)
 

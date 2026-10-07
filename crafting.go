@@ -58,11 +58,61 @@ func (b *Book) bestPrices(maxAge time.Duration) (cheapest, highest map[string]Qu
 }
 
 type Material struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-	Price int64  `json:"price"`
-	City  string `json:"city"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Count   int    `json:"count"`
+	Price   int64  `json:"price"` // per unit: the buy price, or the craft cost if crafted
+	City    string `json:"city"`
+	Crafted bool   `json:"crafted"` // true if it's cheaper to craft this material than buy it
+}
+
+// mcResult is the cheapest way to obtain one unit of an item.
+type mcResult struct {
+	cost    float64
+	crafted bool // crafting it beats buying it
+	ok      bool // can be obtained at all
+}
+
+// materialCost returns the cheapest way to get one unit of item: buy it at the
+// cheapest sell order, or craft it from its own materials (recursively),
+// whichever costs less. seen guards against recipe cycles. Station fees on
+// intermediate crafts are ignored (they're small next to materials), so a
+// crafted cost is a slight under-estimate.
+func materialCost(item string, cheapest map[string]Quote, returnRate float64, seen map[string]bool) mcResult {
+	best, bestCrafted, found := 0.0, false, false
+	if q, canBuy := cheapest[item]; canBuy {
+		best, found = float64(q.Price), true
+	}
+	if r, has := recipes[item]; has && r.Makes >= 1 && len(r.Materials) > 0 && !seen[item] {
+		seen[item] = true
+		sum, complete := 0.0, true
+		for _, m := range r.Materials {
+			if len(m) < 3 {
+				complete = false
+				break
+			}
+			mid, _ := m[0].(string)
+			count, _ := m[1].(float64)
+			returnable, _ := m[2].(float64)
+			sub := materialCost(mid, cheapest, returnRate, seen)
+			if !sub.ok {
+				complete = false
+				break
+			}
+			part := sub.cost * count
+			if returnable == 1 {
+				part *= 1 - returnRate
+			}
+			sum += part
+		}
+		delete(seen, item)
+		if complete {
+			if made := (sum + float64(r.Silver)) / float64(r.Makes); !found || made < best {
+				best, bestCrafted, found = made, true, true
+			}
+		}
+	}
+	return mcResult{best, bestCrafted, found}
 }
 
 // CraftQuality is what the finished item sells for at one quality level, so
@@ -164,23 +214,29 @@ func (b *Book) Crafts(tax, returnRate, stationFee float64, maxAge time.Duration)
 			mid, _ := m[0].(string)
 			count, _ := m[1].(float64)
 			returnable, _ := m[2].(float64)
-			q, ok := cheapest[mid]
-			if !ok {
+			mc := materialCost(mid, cheapest, returnRate, map[string]bool{})
+			if !mc.ok {
 				complete = false
 				break
 			}
-			part := float64(q.Price) * count
+			part := mc.cost * count
 			if returnable == 1 {
 				part *= 1 - returnRate
 			}
 			cost += part
-			if q.Public {
-				anyPublic = true
+			mat := Material{ID: mid, Name: itemName(mid), Count: int(count), Price: int64(mc.cost), City: "craft it", Crafted: mc.crafted}
+			if q, ok := cheapest[mid]; ok {
+				if q.Public {
+					anyPublic = true
+				}
+				if q.Seen.Before(oldest) {
+					oldest = q.Seen
+				}
+				if !mc.crafted {
+					mat.Price, mat.City = q.Price, cityName(q.City)
+				}
 			}
-			if q.Seen.Before(oldest) {
-				oldest = q.Seen
-			}
-			mats = append(mats, Material{mid, itemName(mid), int(count), q.Price, cityName(q.City)})
+			mats = append(mats, mat)
 		}
 		if !complete {
 			continue

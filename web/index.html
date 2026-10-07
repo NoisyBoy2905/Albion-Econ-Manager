@@ -624,7 +624,7 @@ function renderCrafts(s, crafts) {
       <td class="num ${c.ageMin >= 60 ? "stale" : ""}">${ago(c.ageMin)}${c.public ? '<span class="sub"><span class="tag">public</span></span>' : ""}</td>
     </tr>`;
     const mats = isOpen ? `<tr class="mats"><td colspan="7"><ul>${c.materials.map(m =>
-      `<li><b>${m.count} × ${esc(m.name)}</b> at ${fmt(m.price)} in ${esc(m.city)}</li>`).join("")}${c.fee ? `<li><b>Station fee</b> ${fmt(c.fee)} per item</li>` : ""}${c.qualities ? `<li><b>Sells at</b> ${c.qualities.map(q => `${QUALITY[q.quality] || "Q" + q.quality} ${fmt(q.list || q.instant)}`).join(" · ")} <span class="sub" style="display:inline">(profit shown is for Normal)</span></li>` : ""}</ul></td></tr>` : "";
+      `<li><b>${m.count} × ${esc(m.name)}</b> ${m.crafted ? `craft for ${fmt(m.price)} each <span class="tag">cheaper to craft</span>` : `at ${fmt(m.price)} in ${esc(m.city)}`}</li>`).join("")}${c.fee ? `<li><b>Station fee</b> ${fmt(c.fee)} per item</li>` : ""}${c.qualities ? `<li><b>Sells at</b> ${c.qualities.map(q => `${QUALITY[q.quality] || "Q" + q.quality} ${fmt(q.list || q.instant)}`).join(" · ")} <span class="sub" style="display:inline">(profit shown is for Normal)</span></li>` : ""}</ul></td></tr>` : "";
     return row + mats;
   }).join("")
     : `<tr><td colspan="7" class="empty">${s.crafts.length ? "Nothing matches these filters." : "No crafts yet. Browse the materials (like planks and cloth) and the finished items, and they'll show up here."}</td></tr>`;

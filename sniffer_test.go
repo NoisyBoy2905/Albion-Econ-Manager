@@ -298,6 +298,32 @@ func TestCrafting(t *testing.T) {
 	}
 }
 
+func TestCraftVsBuyUsesCheaper(t *testing.T) {
+	// Planks cost 1,000 to buy, but 2 logs at 300 craft them for 600.
+	recipes = map[string]Recipe{
+		"TEST_STAFF":  {Makes: 1, Materials: [][]any{{"TEST_PLANKS", 1.0, 0.0}}},
+		"TEST_PLANKS": {Makes: 1, Materials: [][]any{{"TEST_LOG", 2.0, 0.0}}},
+	}
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: 1, Type: kind}
+	}
+	b.Add([]Order{
+		o("TEST_PLANKS", 1000, "offer"),
+		o("TEST_LOG", 300, "offer"),
+		o("TEST_STAFF", 2500, "offer"), o("TEST_STAFF", 2000, "request"),
+	}, "1002", false)
+
+	c := b.Crafts(0, 0, 0, time.Hour)[0]
+	// The staff costs 600 (craft the planks), not 1,000 (buy them).
+	if c.Cost != 600 {
+		t.Fatalf("craft-vs-buy should cost 600, got %d", c.Cost)
+	}
+	if len(c.Materials) != 1 || !c.Materials[0].Crafted || c.Materials[0].Price != 600 {
+		t.Fatalf("planks should be marked crafted at 600: %+v", c.Materials)
+	}
+}
+
 func TestCraftingShowsQualitySpread(t *testing.T) {
 	recipes = map[string]Recipe{
 		"TEST_STAFF": {Makes: 1, Materials: [][]any{{"TEST_PLANKS", 2.0, 1.0}}},
