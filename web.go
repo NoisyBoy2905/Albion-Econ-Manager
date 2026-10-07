@@ -83,14 +83,16 @@ type flipJSON struct {
 	To      string  `json:"to"`
 	Buy     int64   `json:"buy"`
 	Sell    int64   `json:"sell"`
+	Mode    string  `json:"mode"` // "instant" or "list"
 	Profit  int64   `json:"profit"`
 	Percent float64 `json:"percent"`
 	Qty     int     `json:"qty"`
-	Total   int64   `json:"total"`
-	Cost    int64   `json:"cost"`   // silver to buy all of them
-	Weight  float64 `json:"weight"` // kg for one
-	Public  bool    `json:"public"`
-	AgeMin  int     `json:"ageMin"`
+	Total      int64   `json:"total"`
+	Cost       int64   `json:"cost"`       // silver to buy all of them
+	Weight     float64 `json:"weight"`     // kg for one
+	Public     bool    `json:"public"`
+	Confidence float64 `json:"confidence"` // 1 = just seen, 0 = at the age limit
+	AgeMin     int     `json:"ageMin"`
 }
 
 type stateJSON struct {
@@ -106,14 +108,15 @@ type stateJSON struct {
 	LastPacket int           `json:"lastPacketSec"` // seconds ago, -1 if never
 	Flips      []flipJSON    `json:"flips"`
 	Crafts     []Craft       `json:"crafts"`
+	Trips      []Trip        `json:"trips"`
 	All        []PriceRow    `json:"all"`
 	Recording  recordingJSON `json:"recording"`
 	Public     publicJSON    `json:"public"`
 	Events     []Event       `json:"events"`
 }
 
-func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) stateJSON {
-	flips := a.book.Flips(tax, maxAge)
+func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool, haulPerKg, risk float64) stateJSON {
+	flips := a.book.Flips(tax, maxAge, freshFirst, haulPerKg, risk)
 	out := make([]flipJSON, 0, len(flips))
 	for i, f := range flips {
 		if i == 300 {
@@ -121,12 +124,13 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) s
 		}
 		out = append(out, flipJSON{
 			ID: f.Item, Name: itemName(f.Item), Tier: tier(f.Item), Quality: f.Quality,
-			From: cityName(f.From), To: cityName(f.To),
+			From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
 			Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
 			Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
-			AgeMin: int(f.Age.Minutes()),
+			Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
 		})
 	}
+	trips := planTrips(out, carryKg, budget)
 	crafts := a.book.Crafts(tax, returnRate, stationFee, maxAge)
 	if len(crafts) > 300 {
 		crafts = crafts[:300]
@@ -149,7 +153,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration) s
 		Listening: a.adapters > 0, Adapters: a.adapters,
 		Zone: a.city, ZoneName: cityName(a.city), InMarket: inMarket,
 		Packets: a.packets, Orders: a.orders, Prices: prices, Encrypted: a.encrypted,
-		LastPacket: last, Flips: out, Crafts: crafts, All: all, Events: events, Recording: rec, Public: pub,
+		LastPacket: last, Flips: out, Crafts: crafts, Trips: trips, All: all, Events: events, Recording: rec, Public: pub,
 	}
 }
 
@@ -183,8 +187,29 @@ func (a *App) routes() http.Handler {
 		if err != nil || fee < 0 || fee > 100000 {
 			fee = 0
 		}
+		carry, err := strconv.ParseFloat(q.Get("carry"), 64)
+		if err != nil || carry < 0 || carry > 1e9 {
+			carry = 0
+		}
+		budget, err := strconv.ParseInt(q.Get("budget"), 10, 64)
+		if err != nil || budget < 0 {
+			budget = 0
+		}
+		freshFirst := q.Get("fresh") == "1"
+		haul, err := strconv.ParseFloat(q.Get("haul"), 64)
+		if err != nil || haul < 0 || haul > 1e7 {
+			haul = 0
+		}
+		risk, err := strconv.ParseFloat(q.Get("risk"), 64)
+		if err != nil || risk < 0 || risk > 1 {
+			risk = 0
+		}
+		// Remember these so the saved flips.csv matches what you're viewing.
+		a.mu.Lock()
+		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
+		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute))
+		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst, haul, risk))
 	})
 
 	mux.HandleFunc("/api/record/start", func(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +238,34 @@ func (a *App) routes() http.Handler {
 		}
 		a.event("zone", "Downloading public prices from the Albion Data Project")
 		go a.fetchPublic(base, 1100*time.Millisecond)
+	})
+	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		quality, _ := strconv.Atoi(q.Get("quality"))
+		path := ""
+		if a.hist != nil {
+			a.hist.flush() // so the chart sees the latest buffered records
+			path = a.hist.path
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(pointsFor(path, q.Get("item"), quality, q.Get("city")))
+	})
+	mux.HandleFunc("/api/history/export", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "use POST", http.StatusMethodNotAllowed)
+			return
+		}
+		if a.hist == nil {
+			http.Error(w, "history isn't being recorded", http.StatusServiceUnavailable)
+			return
+		}
+		a.hist.flush()
+		n, err := exportHistory(a.hist.path, "history-export.csv")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		a.event("scan", "Exported %d history rows to history-export.csv", n)
 	})
 	mux.HandleFunc("/api/record/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

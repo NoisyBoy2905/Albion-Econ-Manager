@@ -2,3 +2,7 @@ prices.json
 flips.csv
 *.exe
 *.albrec
+history.jsonl
+history-export.csv
+demo-prices.json
+demo-history.jsonl

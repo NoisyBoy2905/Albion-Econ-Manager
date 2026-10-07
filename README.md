@@ -23,10 +23,12 @@ In the window you can:
 - search items or cities
 - switch Premium on or off (4% or 8% tax)
 - choose how old prices can be
+- turn on **Prefer fresh prices** to rank flips built on older prices lower (each flip shows how sure it is, based on how recently the prices were seen)
+- set a **haul cost** (silver per kg) and a **black-zone risk %** to see flips after the cost of carrying goods and the expected loss to ganks on Caerleon and Black Market routes; flips that stop being worth it then drop out (both are 0 by default, so they change nothing until you set them)
 - set a minimum total profit
 - click any column heading to sort by it
 
-Close the console to stop it. It saves `prices.json` (every price it's seen, so they're still there next time) and `flips.csv` (open it in Excel).
+Close the console to stop it. It saves `prices.json` (every price it's seen, so they're still there next time; prices not seen for 30 days are dropped so the file doesn't grow forever) and `flips.csv` (open it in Excel). Saving is batched, and it saves once more when you close it.
 
 Options (run it from a terminal):
 
@@ -77,11 +79,14 @@ Instead of trusting the game's message numbers, which change after some updates,
 The orders don't say which city they're in. So when you change zone, the sniffer reads your location from the game (for example `1000` = Lymhurst, `1002` = Lymhurst Market, `3003` = Black Market). It labels the orders with that. City markets are their own zones, so you have to go inside the marketplace building.
 
 **5. Flips (market.go)**
-For each item and quality, it takes the cheapest sell order in one city and the best buy order in another. Then:
+For each item and quality, it buys at the cheapest sell order in one city, then in another city it works out the better of two ways to sell:
 
 ```
-profit = buy order price × (1 − tax) − sell order price
+sell instantly  = best buy order × (1 − tax) − sell order price
+list a sell order = cheapest sell order × (1 − tax − 2.5% listing fee) − sell order price
 ```
+
+Selling instantly dumps into someone else's buy order (handy for the Black Market). Listing a sell order means undercutting the cheapest listing there and waiting for a buyer, which usually pays more but isn't instant. Each flip keeps whichever earns more in total, and the window labels it "sell now" or "list here". The listing quantity is an upper bound, since listing a lot undercuts your own price.
 
 It skips prices older than `-max-age`, because old prices are often already gone.
 
@@ -90,16 +95,16 @@ The market sends a page of orders, each with a price and an amount. The sniffer 
 
 **7. Crafting (crafting.go)**
 The game's own data has every recipe, for example 20 planks + 12 cloth for a Great Holy Staff. For each recipe the sniffer:
-1. finds the cheapest price seen for each material in any city
+1. finds the cheapest way to get each material: the cheapest price seen in any city, or the cost of crafting that material from its own materials (following the recipes down, e.g. planks from wood), whichever is less. Materials it's cheaper to craft are marked in the window
 2. takes off the **return rate**, the share of materials the crafting station gives back (artefacts never come back)
 3. compares that cost with what the item sells for: instantly to a buy order, or by listing a sell order (minus the 2.5% listing fee)
 
 4. adds the **station fee**. Stations charge in "nutrition": each item uses its item value × 0.1125 nutrition, and the owner charges a set amount of silver per 100 nutrition (you type this in from the station). Item values come from the game data: for crafted items it's the total value of their materials.
 
-It uses Normal quality prices for crafted items.
+It works out the profit using Normal quality prices (you can't count on a higher quality coming out of a craft). If it has also seen the finished item at higher qualities, it shows those prices when you open the craft, so you can see the upside from crafting up.
 
-**8. Trip planner (in web/index.html)**
-For each pair of cities, it takes the flips on that route and sorts them by **profit per kg**. Then it fills your bags from the top: as many of each as it can, until you run out of carry weight or silver. Item weights come from the game data. Sorting by profit per kg is a "greedy" method: it's quick, and nearly always gives the best load or close to it.
+**8. Trip planner (trips.go)**
+For each pair of cities, it takes the flips on that route and sorts them by **profit per kg**. Then it fills your bags from the top: as many of each as it can, until you run out of carry weight or silver. Item weights come from the game data. Sorting by profit per kg is a "greedy" method: it's quick, and nearly always gives the best load or close to it. The plan is worked out on the server from the carry weight and silver budget you type in, which the window sends with each update; the page just draws the result.
 
 
 **9. The window (web.go and web/index.html)**
@@ -111,6 +116,14 @@ The **Get public prices** button downloads prices for about 10,000 items in ever
 
 - Public prices are marked **public** in the window. They can be hours old, and they don't say how many are on offer, so flips using them count 1 item. Check them in game before buying lots.
 - Your own sniffed prices always win when they're newer.
+
+## Price history
+
+As well as keeping the latest price, the sniffer appends every price it stores to `history.jsonl`, one JSON object per line (append-only, never rewritten). Each line has the time, item, quality, city (zone ID), side (`sell` or `buy`), price, amount, the full list of order levels (for your own scans), and the source (`own` or `public`). It skips a line if nothing changed since the last one for that item/quality/city/side, so it doesn't fill with duplicates. It's meant to be read later by other projects, like a market simulator.
+
+- **Export history** (button in the window) writes `history-export.csv` next to the sniffer, one row per record, with the levels as a short text like `2100x4;2600x10`.
+- From a terminal, `albion-sniffer.exe -export-history` does the same without opening the window.
+- In the **All prices** tab, click any row to see a small chart of that item's cheapest sell and best buy price over time in that city.
 
 ## Recording game traffic
 

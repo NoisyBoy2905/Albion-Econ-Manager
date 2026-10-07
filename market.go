@@ -49,6 +49,12 @@ func cityName(id string) string {
 	return id
 }
 
+// Routes through the black zone to Caerleon or the Black Market are where
+// you get ganked, so flips on them can take a risk haircut.
+var dangerCity = map[string]bool{"3003": true, "3005": true, "3013-Auction2": true}
+
+func dangerousRoute(from, to string) bool { return dangerCity[from] || dangerCity[to] }
+
 var placeID = regexp.MustCompile(`^[0-9]{3,6}$`)
 
 // looksLikePlace checks if a string is a market location id like "3005"
@@ -61,8 +67,8 @@ func looksLikePlace(s string) bool {
 
 // Level is one price on the order list and how many are on offer at it.
 type Level struct {
-	Price  int64
-	Amount int
+	Price  int64 `json:"price"`
+	Amount int   `json:"amount"`
 }
 
 // Price holds the orders we've seen for one item, quality and city.
@@ -80,10 +86,16 @@ type Price struct {
 	BuyPublic  bool
 }
 
+// Drop prices we haven't seen on either side for this long, so prices.json
+// doesn't grow forever across restarts.
+const keepPrices = 30 * 24 * time.Hour
+
 type Book struct {
-	mu     sync.Mutex
-	Prices map[string]*Price
-	path   string
+	mu        sync.Mutex
+	Prices    map[string]*Price
+	path      string
+	saveTimer *time.Timer // a pending debounced save, if any
+	hist      *History    // price history log, nil if not recording
 }
 
 func NewBook(path string) *Book {
@@ -91,7 +103,27 @@ func NewBook(path string) *Book {
 	if data, err := os.ReadFile(path); err == nil {
 		json.Unmarshal(data, &b.Prices)
 	}
+	b.prune(keepPrices)
 	return b
+}
+
+// prune removes prices that are older than maxAge on both sides.
+func (b *Book) prune(maxAge time.Duration) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	now := time.Now()
+	n := 0
+	for k, p := range b.Prices {
+		seen := p.SellSeen
+		if p.BuySeen.After(seen) {
+			seen = p.BuySeen
+		}
+		if now.Sub(seen) > maxAge {
+			delete(b.Prices, k)
+			n++
+		}
+	}
+	return n
 }
 
 func key(item string, q int, city string) string {
@@ -177,30 +209,72 @@ func (b *Book) Add(orders []Order, city string, divide bool) {
 			e.BuyPublic = false
 			e.Buy, e.BuySeen = e.BuyLevels[0].Price, now
 		}
+		if b.hist != nil {
+			ts := now.Format(time.RFC3339)
+			if len(p.sell) > 0 {
+				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
+					Side: "sell", Price: e.Sell, Amount: e.SellLevels[0].Amount, Levels: e.SellLevels, Source: "own"})
+			}
+			if len(p.buy) > 0 {
+				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
+					Side: "buy", Price: e.Buy, Amount: e.BuyLevels[0].Amount, Levels: e.BuyLevels, Source: "own"})
+			}
+		}
 	}
-	b.save()
+	b.hist.flush() // nil-safe; writes this page's records to disk
+	b.scheduleSave()
 }
 
-func (b *Book) save() {
+// writeLocked marshals the book and writes it to disk. Caller holds b.mu.
+func (b *Book) writeLocked() {
 	data, err := json.Marshal(b.Prices)
 	if err == nil {
 		os.WriteFile(b.path, data, 0644)
 	}
 }
 
+// scheduleSave writes the book a couple of seconds after a change, so a
+// burst of market pages becomes one write instead of one per page. Caller
+// holds b.mu.
+func (b *Book) scheduleSave() {
+	if b.saveTimer != nil {
+		return // a save is already pending; it will pick up this change
+	}
+	b.saveTimer = time.AfterFunc(2*time.Second, func() {
+		b.mu.Lock()
+		b.saveTimer = nil
+		b.writeLocked()
+		b.mu.Unlock()
+	})
+}
+
+// Flush writes the book to disk now and cancels any pending save. Call it
+// when the program is shutting down, so nothing is lost.
+func (b *Book) Flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.saveTimer != nil {
+		b.saveTimer.Stop()
+		b.saveTimer = nil
+	}
+	b.writeLocked()
+}
+
 type Flip struct {
 	Item     string
 	Quality  int
 	From, To string
-	BuyFor   int64 // cheapest price
-	SellFor  int64 // best price
-	Profit   int64 // profit on the first one
+	BuyFor   int64  // cheapest price
+	SellFor  int64  // best price
+	Mode     string // "instant" = sell into buy orders, "list" = undercut sell orders
+	Profit   int64  // profit on the first one
 	Percent  float64
-	Qty      int   // how many you can flip before it stops being worth it
-	Total    int64 // profit on all of them
-	Cost     int64 // silver needed to buy all of them
-	Public   bool  // uses a public price, so the quantity isn't known
-	Age      time.Duration
+	Qty        int     // how many you can flip before it stops being worth it
+	Total      int64   // profit on all of them
+	Cost       int64   // silver needed to buy all of them
+	Public     bool    // uses a public price, so the quantity isn't known
+	Confidence float64 // 1 for just-seen prices, falling to 0 at the age limit
+	Age        time.Duration
 }
 
 // match walks both order lists: buy the cheapest sell orders and sell them
@@ -233,9 +307,33 @@ func match(sells, buys []Level, tax float64) (qty int, total, cost int64) {
 	return qty, total, cost
 }
 
-// Flips: buy at the cheapest sell orders in one city, then sell instantly
-// to the best buy orders in another city (like the Black Market).
-func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
+// listFill is the "list a sell order" version of match. You buy the cheapest
+// sell orders in one city and, in another, list them yourself at the going
+// rate (proceeds, already after tax and the listing fee). You keep buying for
+// as long as each one still costs less than you'd net. There's no limit from
+// the other side, so this is an upper bound: listing a lot undercuts yourself.
+func listFill(sells []Level, proceeds int64) (qty int, total, cost int64) {
+	for _, l := range sells {
+		net := proceeds - l.Price
+		if net <= 0 {
+			break
+		}
+		qty += l.Amount
+		total += int64(l.Amount) * net
+		cost += int64(l.Amount) * l.Price
+	}
+	return qty, total, cost
+}
+
+// Flips: buy at the cheapest sell orders in one city, then in another city
+// either sell instantly to the best buy orders (like the Black Market) or
+// list your own sell order at the going rate. Each flip keeps whichever of
+// the two earns more in total. When freshFirst is set, flips built on older
+// prices are ranked lower, so a stale outlier doesn't sit at the top.
+// haulPerKg charges silver per kg carried; risk (0..1) is the share you expect
+// to lose to ganks on a dangerous route. Both default to 0 (no change). A flip
+// that no longer profits once those are taken off is dropped.
+func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPerKg, risk float64) []Flip {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := time.Now()
@@ -252,38 +350,90 @@ func (b *Book) Flips(tax float64, maxAge time.Duration) []Flip {
 			if from.City == "" || from.Sell == 0 || now.Sub(from.SellSeen) > maxAge {
 				continue
 			}
+			sells := from.SellLevels
+			if len(sells) == 0 { // prices saved by an older version
+				sells = []Level{{from.Sell, 1}}
+			}
 			for _, to := range list {
-				if to == from || to.City == "" || to.City == from.City || to.Buy == 0 || now.Sub(to.BuySeen) > maxAge {
+				if to == from || to.City == "" || to.City == from.City {
 					continue
 				}
-				profit := int64(float64(to.Buy)*(1-tax)) - from.Sell
-				if profit <= 0 {
+
+				// Sell instantly into the destination's buy orders.
+				var inProfit, inTotal, inCost int64
+				var inQty int
+				if to.Buy > 0 && now.Sub(to.BuySeen) <= maxAge {
+					if p := int64(float64(to.Buy)*(1-tax)) - from.Sell; p > 0 {
+						buys := to.BuyLevels
+						if len(buys) == 0 {
+							buys = []Level{{to.Buy, 1}}
+						}
+						inProfit = p
+						inQty, inTotal, inCost = match(sells, buys, tax)
+					}
+				}
+
+				// List your own sell order, undercutting the cheapest one there.
+				var liProfit, liTotal, liCost int64
+				var liQty int
+				if to.Sell > 0 && now.Sub(to.SellSeen) <= maxAge {
+					proceeds := int64(float64(to.Sell) * (1 - tax - setupFee))
+					if p := proceeds - from.Sell; p > 0 {
+						liProfit = p
+						liQty, liTotal, liCost = listFill(sells, proceeds)
+					}
+				}
+
+				if inProfit <= 0 && liProfit <= 0 {
 					continue
 				}
-				sells, buys := from.SellLevels, to.BuyLevels
-				if len(sells) == 0 { // prices saved by an older version
-					sells = []Level{{from.Sell, 1}}
-				}
-				if len(buys) == 0 {
-					buys = []Level{{to.Buy, 1}}
-				}
-				qty, total, cost := match(sells, buys, tax)
-				age := now.Sub(from.SellSeen)
-				if a := now.Sub(to.BuySeen); a > age {
-					age = a
-				}
-				out = append(out, Flip{
+
+				// Keep whichever strategy earns more in total.
+				f := Flip{
 					Item: from.Item, Quality: from.Quality,
-					From: from.City, To: to.City,
-					BuyFor: from.Sell, SellFor: to.Buy,
-					Profit: profit, Percent: float64(profit) / float64(from.Sell) * 100,
-					Qty: qty, Total: total, Cost: cost, Age: age,
+					From: from.City, To: to.City, BuyFor: from.Sell,
+					Mode: "instant", SellFor: to.Buy,
+					Profit: inProfit, Qty: inQty, Total: inTotal, Cost: inCost,
 					Public: from.SellPublic || to.BuyPublic,
-				})
+				}
+				sellSeen := to.BuySeen
+				if liTotal > inTotal {
+					f.Mode, f.SellFor = "list", to.Sell
+					f.Profit, f.Qty, f.Total, f.Cost = liProfit, liQty, liTotal, liCost
+					f.Public = from.SellPublic || to.SellPublic
+					sellSeen = to.SellSeen
+				}
+				// Take off the cost of hauling, and on a dangerous route the
+				// expected loss to ganks (losing the cargo you paid for).
+				haul := itemWeight(f.Item) * haulPerKg
+				r := 0.0
+				if dangerousRoute(f.From, f.To) {
+					r = risk
+				}
+				f.Profit = int64((1-r)*float64(f.Profit)-r*float64(f.BuyFor)-haul)
+				f.Total = int64((1-r)*float64(f.Total) - r*float64(f.Cost) - haul*float64(f.Qty))
+				if f.Total <= 0 {
+					continue
+				}
+				f.Percent = float64(f.Profit) / float64(from.Sell) * 100
+				f.Age = now.Sub(from.SellSeen)
+				if a := now.Sub(sellSeen); a > f.Age {
+					f.Age = a
+				}
+				f.Confidence = 1 - float64(f.Age)/float64(maxAge)
+				if f.Confidence < 0 {
+					f.Confidence = 0
+				}
+				out = append(out, f)
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Total > out[j].Total })
+	sort.Slice(out, func(i, j int) bool {
+		if freshFirst {
+			return float64(out[i].Total)*out[i].Confidence > float64(out[j].Total)*out[j].Confidence
+		}
+		return out[i].Total > out[j].Total
+	})
 	return out
 }
 

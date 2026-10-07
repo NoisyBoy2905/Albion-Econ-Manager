@@ -14,9 +14,15 @@ import (
 
 func main() {
 	flag.Parse()
+	if runExportHistoryFlag() {
+		return
+	}
 	loadItemNames()
 	loadRecipes()
 	app := NewApp("prices.json")
+	h := NewHistory("history.jsonl")
+	app.hist, app.book.hist = h, h
+	flushOnExit(app)
 
 	fmt.Println("Albion market sniffer")
 	fmt.Println("Only reads your own game traffic. It never changes or controls the game.")

@@ -40,10 +40,14 @@ type App struct {
 	rec        *Recorder
 	lastRec    recordingJSON
 	public     Public
+	hist       *History // price history log, nil if not recording
+	csvTax     float64       // tax and age from the last window poll, so the
+	csvAge     time.Duration // flips.csv matches what you're looking at
 }
 
 func NewApp(pricesFile string) *App {
-	return &App{book: NewBook(pricesFile), started: time.Now()}
+	// Defaults until the window first polls: premium tax, 6 hours.
+	return &App{book: NewBook(pricesFile), started: time.Now(), csvTax: 0.04, csvAge: 6 * time.Hour}
 }
 
 // event saves a line for the window and prints it in the console too.
@@ -141,10 +145,13 @@ func (a *App) saveFlips() {
 	}
 	defer file.Close()
 	w := csv.NewWriter(file)
-	w.Write([]string{"item", "quality", "buy_in", "sell_in", "buy_price", "sell_price", "profit_each", "percent", "quantity", "total_profit", "age_minutes"})
-	for _, f := range a.book.Flips(0.04, 6*time.Hour) {
+	a.mu.Lock()
+	tax, age := a.csvTax, a.csvAge
+	a.mu.Unlock()
+	w.Write([]string{"item", "quality", "buy_in", "sell_in", "sell_mode", "buy_price", "sell_price", "profit_each", "percent", "quantity", "total_profit", "age_minutes"})
+	for _, f := range a.book.Flips(tax, age, false, 0, 0) {
 		w.Write([]string{
-			itemName(f.Item), strconv.Itoa(f.Quality), cityName(f.From), cityName(f.To),
+			itemName(f.Item), strconv.Itoa(f.Quality), cityName(f.From), cityName(f.To), f.Mode,
 			strconv.FormatInt(f.BuyFor, 10), strconv.FormatInt(f.SellFor, 10),
 			strconv.FormatInt(f.Profit, 10), fmt.Sprintf("%.1f", f.Percent),
 			strconv.Itoa(f.Qty), strconv.FormatInt(f.Total, 10),

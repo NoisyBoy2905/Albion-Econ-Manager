@@ -12,6 +12,7 @@ type PriceRow struct {
 	Tier       string `json:"tier"`
 	Quality    int    `json:"quality"`
 	City       string `json:"city"`
+	CityID     string `json:"cityId"` // raw zone ID, for the history chart
 	Sell       int64  `json:"sell"`       // cheapest sell order (0 if none)
 	SellAmount int    `json:"sellAmount"` // how many at that price
 	Buy        int64  `json:"buy"`        // best buy order (0 if none)
@@ -40,7 +41,7 @@ func (b *Book) All(maxAge time.Duration, limit int) []PriceRow {
 		}
 		r := PriceRow{
 			ID: p.Item, Name: itemName(p.Item), Tier: tier(p.Item), Quality: p.Quality,
-			City: cityName(p.City), AgeMin: int(now.Sub(seen).Minutes()),
+			City: cityName(p.City), CityID: p.City, AgeMin: int(now.Sub(seen).Minutes()),
 		}
 		if p.Sell > 0 && now.Sub(p.SellSeen) <= maxAge {
 			r.Sell, r.SellPublic = p.Sell, p.SellPublic
