@@ -314,6 +314,83 @@ func TestPublicPrices(t *testing.T) {
 	}
 }
 
+// The shipped game data must let Dual Swords flow through names, weights
+// and crafting like any other weapon. This guards against a future
+// ao-bin-dumps regeneration silently dropping them.
+func TestDualSwordsAreInTheData(t *testing.T) {
+	loadItemNames()
+	loadRecipes()
+	for _, id := range []string{"T4_2H_DUALSWORD", "T5_2H_DUALSWORD", "T8_2H_DUALSWORD"} {
+		if itemName(id) == id {
+			t.Fatalf("%s has no name in items.txt", id)
+		}
+		if itemWeight(id) <= 0 {
+			t.Fatalf("%s has no weight in items.txt", id)
+		}
+		r, ok := recipes[id]
+		if !ok || len(r.Materials) == 0 {
+			t.Fatalf("%s has no recipe in recipes.json", id)
+		}
+		for _, m := range r.Materials {
+			if mid, _ := m[0].(string); itemName(mid) == mid {
+				t.Fatalf("%s needs %s, which has no name in items.txt", id, mid)
+			}
+		}
+	}
+}
+
+// A Dual Swords flip and craft, the same shape as the -demo data: buy the
+// sword cheap in Lymhurst, sell it to a Black Market buy order, or craft it
+// from bars and leather.
+func TestDualSwordsFlipAndCraft(t *testing.T) {
+	recipes = map[string]Recipe{
+		"T5_2H_DUALSWORD": {Makes: 1, Materials: [][]any{
+			{"T5_METALBAR", 20.0, 1.0}, {"T5_LEATHER", 12.0, 1.0}}},
+	}
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+	b.Add([]Order{
+		o("T5_2H_DUALSWORD", 48000, "offer", 2),
+		o("T5_METALBAR", 1100, "offer", 800),
+		o("T5_LEATHER", 1100, "offer", 500),
+	}, "1002", false)
+	b.Add([]Order{o("T5_2H_DUALSWORD", 55000, "request", 3)}, "3003", false)
+
+	var f Flip
+	for _, x := range b.Flips(0.04, time.Hour) {
+		if x.Item == "T5_2H_DUALSWORD" {
+			f = x
+		}
+	}
+	// buy 48,000 in Lymhurst, sell to the 55,000 buy order minus 4% = 52,800
+	if f.From != "1002" || f.To != "3003" || f.BuyFor != 48000 || f.SellFor != 55000 || f.Profit != 4800 {
+		t.Fatalf("wrong Dual Swords flip: %+v", f)
+	}
+	// 2 on offer, 3 wanted: 2 x 4,800 = 9,600
+	if f.Qty != 2 || f.Total != 9600 {
+		t.Fatalf("wrong Dual Swords flip quantity: %+v", f)
+	}
+
+	var c Craft
+	for _, x := range b.Crafts(0.04, 0.152, 0, time.Hour) {
+		if x.ID == "T5_2H_DUALSWORD" {
+			c = x
+		}
+	}
+	// 20 bars x 1,100 + 12 leather x 1,100, both returnable at 15.2% back:
+	// (22,000 + 13,200) x 0.848 = 29,849
+	if c.Cost != 29849 {
+		t.Fatalf("wrong Dual Swords craft cost: %d", c.Cost)
+	}
+	// instant: 55,000 - 4% = 52,800 - 29,849 = 22,951
+	// listing: 48,000 - 6.5% = 44,880 - 29,849 = 15,031
+	if c.Profit != 22951 || c.ListProfit != 15031 {
+		t.Fatalf("wrong Dual Swords craft profits: %d instant, %d listed", c.Profit, c.ListProfit)
+	}
+}
+
 func TestBatchesStayShort(t *testing.T) {
 	var ids []string
 	for i := 0; i < 500; i++ {

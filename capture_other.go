@@ -61,6 +61,9 @@ func main() {
 		o("T6_PLANKS", 1, 2400, "offer", 500), o("T6_CLOTH", 1, 2600, "offer", 300),
 		o("T5_PLANKS", 1, 900, "offer", 800), o("T5_CLOTH", 1, 1100, "offer", 400),
 		o("T4_PLANKS", 1, 300, "offer", 900), o("T4_CLOTH", 1, 380, "offer", 700),
+		// Dual Swords for sale, plus the bars and leather to craft them.
+		o("T5_2H_DUALSWORD", 1, 48000, "offer", 2),
+		o("T5_METALBAR", 1, 1100, "offer", 800), o("T5_LEATHER", 1, 1100, "offer", 500),
 	}, "1002", true)
 	if os.Getenv("DEMO_ONE_CITY") != "" { // like a first visit: one market, no flips yet
 		for {
@@ -74,6 +77,7 @@ func main() {
 		o("T6_2H_HOLYSTAFF", 2, 131000, "request", 2),
 		o("T5_MAIN_SWORD@1", 1, 47800, "request", 5), o("T7_ARMOR_PLATE_SET1", 3, 402500, "request", 1),
 		o("T5_2H_HOLYSTAFF", 1, 38500, "request", 4), o("T4_2H_HOLYSTAFF", 1, 9800, "request", 9),
+		o("T5_2H_DUALSWORD", 1, 55000, "request", 3), // buy cheap in Lymhurst, sell here
 	}, "3003", true)
 	app.handle(Message{Kind: msgResponse, Params: map[byte]any{8: "3005"}})
 	app.book.Add([]Order{o("T4_MOUNT_HORSE", 1, 27900, "request", 3), o("T5_2H_HOLYSTAFF", 1, 45900, "offer", 2)}, "3005", true)
