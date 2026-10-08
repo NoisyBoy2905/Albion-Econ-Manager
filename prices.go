@@ -12,7 +12,7 @@ type PriceRow struct {
 	Tier       string `json:"tier"`
 	Quality    int    `json:"quality"`
 	City       string `json:"city"`
-	CityID     string `json:"cityId"` // raw zone ID, for the history chart
+	CityID     string `json:"cityId"`     // raw zone ID, for the history chart
 	Sell       int64  `json:"sell"`       // cheapest sell order (0 if none)
 	SellAmount int    `json:"sellAmount"` // how many at that price
 	Buy        int64  `json:"buy"`        // best buy order (0 if none)

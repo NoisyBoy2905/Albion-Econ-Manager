@@ -192,7 +192,9 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 		k := key(r.Item, r.Quality, city)
 		e := b.Prices[k]
 		fresh := false
-		if r.SellMin > 0 {
+		// You can't buy from the Black Market, so a Black Market sell price is
+		// never usable; ignore it rather than store something misleading.
+		if r.SellMin > 0 && city != blackMarket {
 			if t := parseAPITime(r.SellDate); !t.IsZero() {
 				if e == nil {
 					e = &Price{Item: r.Item, Quality: r.Quality, City: city}

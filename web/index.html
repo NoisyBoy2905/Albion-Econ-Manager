@@ -177,7 +177,7 @@ tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14
 }
 
 @media (max-width: 860px) {
-  header, .route, .flips, aside { padding-left: 16px; padding-right: 16px; }
+  header, .route, .flips, aside, footer { padding-left: 16px; padding-right: 16px; }
   .warning { margin-left: 16px; margin-right: 16px; }
   main { grid-template-columns: 1fr; }
   .flips { border-right: 0; border-bottom: 1px solid var(--line); }
@@ -372,6 +372,10 @@ tr.chart-row td { padding: 0 14px 16px; }
     <ul class="feed" id="feed"></ul>
   </aside>
 </main>
+
+<footer class="note" style="padding:16px 28px 28px;border-top:1px solid var(--line);max-width:none">
+  Unofficial fan-made tool, not affiliated with or endorsed by Sandbox Interactive. It only reads your own game traffic and never changes, automates, or controls the game. Item and price data belong to their owners. Use at your own risk under Albion Online's terms of service.
+</footer>
 
 <script>
 const QUALITY = ["", "Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
@@ -602,8 +606,8 @@ function renderFlips(s, flips) {
       <td class="num">${fmt(f.buy)}</td>
       <td class="num">${fmt(f.sell)}<span class="sub">${f.mode === "list" ? "list here" : "sell now"}</span></td>
       <td class="num">+${fmt(f.profit)}<span class="sub">${f.percent.toFixed(0)}%</span></td>
-      <td class="num">${f.public ? "?" : fmt(f.qty)}</td>
-      <td class="num profit">+${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : ""}</td>
+      <td class="num">${f.public ? "?" : (f.est ? "≈" : "") + fmt(f.qty)}</td>
+      <td class="num profit">${f.est ? "≈" : "+"}${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : f.est ? '<span class="sub">est., up to what\'s listed</span>' : ""}</td>
       <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}<span class="sub">${Math.round(f.confidence * 100)}% sure${f.public ? ' · <span class="tag">public</span>' : ""}</span></td>
     </tr>`).join("")
     : `<tr><td colspan="9" class="empty">${s.flips.length ? "No flips match these filters." : "No flips yet. They appear once you've checked the same items in two places."}</td></tr>`;
@@ -658,7 +662,7 @@ function renderRoute(s, flips) {
     <h2>${esc(top.name)}<small>${esc(top.tier)}, ${QUALITY[top.quality] || ""}</small></h2>
     <div class="path">
       <div class="stop"><div class="city">${esc(top.from)}</div><div class="price">Buy ${fmt(top.qty)} from ${fmt(top.buy)}</div></div>
-      <div class="trail"><div class="gain">+${fmt(top.total)}<span>${top.percent.toFixed(0)}% on the first</span></div></div>
+      <div class="trail"><div class="gain">${top.est ? "≈" : "+"}${fmt(top.total)}<span>${top.percent.toFixed(0)}% on the first${top.est ? ", est." : ""}</span></div></div>
       <div class="stop end"><div class="city">${esc(top.to)}</div><div class="price">${top.mode === "list" ? "List" : "Sell now"} from ${fmt(top.sell)}</div></div>
     </div>`;
 }

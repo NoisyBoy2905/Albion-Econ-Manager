@@ -57,14 +57,24 @@ func levelsText(ls []Level) string {
 	return strings.Join(parts, ";")
 }
 
+// dedupKey and recordSig together decide whether a record is a change worth
+// logging: same key + same signature as last time means nothing changed.
+func dedupKey(item string, quality int, city, side string) string {
+	return item + "|" + strconv.Itoa(quality) + "|" + city + "|" + side
+}
+
+func recordSig(price int64, amount int, levels []Level) string {
+	return strconv.FormatInt(price, 10) + "x" + strconv.Itoa(amount) + "|" + levelsText(levels)
+}
+
 // record appends one record, unless nothing changed since the last record for
 // this item/quality/city/side.
 func (h *History) record(r HistoryRecord) {
 	if h == nil || h.w == nil {
 		return
 	}
-	k := r.Item + "|" + strconv.Itoa(r.Quality) + "|" + r.City + "|" + r.Side
-	sig := strconv.FormatInt(r.Price, 10) + "x" + strconv.Itoa(r.Amount) + "|" + levelsText(r.Levels)
+	k := dedupKey(r.Item, r.Quality, r.City, r.Side)
+	sig := recordSig(r.Price, r.Amount, r.Levels)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.last[k] == sig {
@@ -74,6 +84,37 @@ func (h *History) record(r HistoryRecord) {
 	if data, err := json.Marshal(r); err == nil {
 		h.w.Write(data)
 		h.w.WriteByte('\n')
+	}
+}
+
+// seedFrom primes the dedup map from prices already in the book, so that after
+// a restart a public download doesn't re-log prices whose value hasn't changed
+// (the API's dates advance each time, which would otherwise look like news).
+// The signatures must match exactly what record() would produce for the same
+// unchanged price, for own scans (full levels) and public prices (no amounts).
+func (h *History) seedFrom(b *Book) {
+	if h == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, p := range b.Prices {
+		if p.Sell > 0 {
+			amount, levels := 0, []Level(nil)
+			if !p.SellPublic && len(p.SellLevels) > 0 {
+				amount, levels = p.SellLevels[0].Amount, p.SellLevels
+			}
+			h.last[dedupKey(p.Item, p.Quality, p.City, "sell")] = recordSig(p.Sell, amount, levels)
+		}
+		if p.Buy > 0 {
+			amount, levels := 0, []Level(nil)
+			if !p.BuyPublic && len(p.BuyLevels) > 0 {
+				amount, levels = p.BuyLevels[0].Amount, p.BuyLevels
+			}
+			h.last[dedupKey(p.Item, p.Quality, p.City, "buy")] = recordSig(p.Buy, amount, levels)
+		}
 	}
 }
 

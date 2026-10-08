@@ -218,12 +218,112 @@ func TestListFlipWhenItPaysMore(t *testing.T) {
 	f := flips[0]
 	// instant into the 1,200 buy order: 1,200 - 4% = 1,152 - 1,000 = 152.
 	// listing at 2,000: 2,000 - 6.5% = 1,869 - 1,000 = 869. Listing wins.
-	if f.Mode != "list" || f.SellFor != 2000 || f.Profit != 869 {
-		t.Fatalf("expected a listing flip at 2,000: %+v", f)
+	if f.Mode != "list" || f.SellFor != 2000 || f.Profit != 869 || !f.Est {
+		t.Fatalf("expected a listing flip at 2,000, marked as an estimate: %+v", f)
 	}
-	// 10 on offer in Lymhurst, all under the 1,869 you'd net, so all 10.
-	if f.Qty != 10 || f.Total != 8690 {
-		t.Fatalf("wrong listing quantity: %d bags, %d total", f.Qty, f.Total)
+	// Only 3 are listed at Caerleon, so you can list about 3 before saturating
+	// it, not all 10 you could buy in Lymhurst: 3 x 869 = 2,607.
+	if f.Qty != 3 || f.Total != 2607 {
+		t.Fatalf("wrong listing quantity: %d bags, %d total (want 3 / 2607)", f.Qty, f.Total)
+	}
+}
+
+// Bug 1: a list flip must not claim more than the far market can absorb.
+func TestListFlipCappedByDestination(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+	// Lymhurst can sell you 500 bags cheap. Martlock has 3 buy orders at 2,600
+	// and only 2 listed at 2,700. You can't offload 500 there.
+	b.Add([]Order{o("T4_BAG", 2000, "offer", 500)}, "1002", false)
+	b.Add([]Order{o("T4_BAG", 2600, "request", 3), o("T4_BAG", 2700, "offer", 2)}, "3008", false)
+
+	flips := b.Flips(0.04, time.Hour, false, 0, 0)
+	if len(flips) != 1 {
+		t.Fatalf("expected 1 flip, got %+v", flips)
+	}
+	f := flips[0]
+	// Selling instantly into the 3 buy orders (qty 3) beats listing just 2, so
+	// instant wins. Either way the quantity is a handful, never hundreds.
+	if f.Mode != "instant" || f.Qty != 3 {
+		t.Fatalf("expected a small instant flip, got mode %q qty %d: %+v", f.Mode, f.Qty, f)
+	}
+	if f.Total >= 100000 {
+		t.Fatalf("flip total looks inflated (unlimited buyers bug): %d", f.Total)
+	}
+}
+
+// Bug 2: the Black Market is sell-only. You can't buy from it or list into it.
+func TestBlackMarketIsSellOnly(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+
+	// A sell order sitting at the Black Market must never become a buy-in.
+	b.Add([]Order{o("T4_BAG", 1000, "offer", 5)}, blackMarket, false)
+	b.Add([]Order{o("T4_BAG", 2000, "request", 5)}, "1002", false)
+	for _, f := range b.Flips(0.04, time.Hour, false, 0, 0) {
+		if f.From == blackMarket {
+			t.Fatalf("flip buys from the Black Market: %+v", f)
+		}
+	}
+
+	// A public Black Market sell price must not even be stored.
+	recent := time.Now().UTC().Add(-5 * time.Minute).Format("2006-01-02T15:04:05")
+	b.AddPublic([]apiPrice{{Item: "T5_BAG", City: "Black Market", Quality: 1, SellMin: 1000, SellDate: recent}})
+	if p := b.Prices[key("T5_BAG", 1, blackMarket)]; p != nil && p.Sell > 0 {
+		t.Fatalf("stored a Black Market sell price: %+v", p)
+	}
+
+	// A material only available at the Black Market can't be bought, so the
+	// craft that needs it is dropped rather than priced off an impossible buy.
+	recipes = map[string]Recipe{"BM_STAFF": {Makes: 1, Materials: [][]any{{"BM_MAT", 1.0, 0.0}}}}
+	b.Add([]Order{o("BM_MAT", 100, "offer", 50)}, blackMarket, false)
+	b.Add([]Order{o("BM_STAFF", 5000, "request", 1)}, "1002", false)
+	if c := b.Crafts(0, 0, 0, time.Hour); len(c) != 0 {
+		t.Fatalf("craft used a Black Market material: %+v", c)
+	}
+}
+
+// Bug 2: listing at the Black Market is impossible, so no list flip targets it.
+func TestBlackMarketNeverAListTarget(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+	// Buy cheap in Lymhurst; the Black Market shows a sell order and no buy
+	// order. Listing there can't happen, so there's no flip.
+	b.Add([]Order{o("T4_BAG", 1000, "offer", 10)}, "1002", false)
+	b.Add([]Order{o("T4_BAG", 3000, "offer", 5)}, blackMarket, false)
+	for _, f := range b.Flips(0.04, time.Hour, false, 0, 0) {
+		if f.To == blackMarket && f.Mode == "list" {
+			t.Fatalf("flip lists at the Black Market: %+v", f)
+		}
+	}
+}
+
+// The trip planner must not buy more than the capped flip quantity.
+func TestTripUsesCappedListQty(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: 1, Price: price, Amount: amount, Type: kind}
+	}
+	// Lymhurst has 100 bags cheap; Caerleon lists only 2 and has no buy order,
+	// so listing wins but only 2 can be absorbed.
+	b.Add([]Order{o("T4_BAG", 1000, "offer", 100)}, "1002", false)
+	b.Add([]Order{o("T4_BAG", 2000, "offer", 2)}, "3005", false)
+
+	flips := b.Flips(0, time.Hour, false, 0, 0)
+	if len(flips) != 1 || flips[0].Mode != "list" || flips[0].Qty != 2 {
+		t.Fatalf("expected a list flip capped to 2, got %+v", flips)
+	}
+	fj := []flipJSON{{From: flips[0].From, To: flips[0].To, Name: "bag",
+		Qty: flips[0].Qty, Total: flips[0].Total, Cost: flips[0].Cost}}
+	trips := planTrips(fj, 1e6, 1e9)
+	if len(trips) != 1 || len(trips[0].Picks) != 1 || trips[0].Picks[0].N != 2 {
+		t.Fatalf("trip should buy only the 2 the market can absorb, got %+v", trips)
 	}
 }
 
@@ -281,7 +381,8 @@ func TestCrafting(t *testing.T) {
 		return Order{Item: item, Quality: 1, Price: price, Amount: 1, Type: kind}
 	}
 	b.Add([]Order{o("TEST_PLANKS", 100, "offer"), o("TEST_ARTEFACT", 500, "offer"), o("TEST_MISSING", 9999, "request")}, "1002", false)
-	b.Add([]Order{o("TEST_STAFF", 1000, "request"), o("TEST_STAFF", 1200, "offer")}, "3003", false)
+	// Martlock, not the Black Market: you can't list a sell order at the BM.
+	b.Add([]Order{o("TEST_STAFF", 1000, "request"), o("TEST_STAFF", 1200, "offer")}, "3008", false)
 
 	crafts := b.Crafts(0.04, 0.2, 0, time.Hour)
 	if len(crafts) != 1 {

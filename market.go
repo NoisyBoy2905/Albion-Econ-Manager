@@ -55,6 +55,12 @@ var dangerCity = map[string]bool{"3003": true, "3005": true, "3013-Auction2": tr
 
 func dangerousRoute(from, to string) bool { return dangerCity[from] || dangerCity[to] }
 
+// The Black Market (zone 3003) only buys from players: there are no sell
+// orders to buy from there, and you can't list your own sell order there. So
+// it's never a place you buy from (a flip, trip or craft source) and never a
+// place you list into — only a place you sell instantly, into its buy orders.
+const blackMarket = "3003"
+
 var placeID = regexp.MustCompile(`^[0-9]{3,6}$`)
 
 // looksLikePlace checks if a string is a market location id like "3005"
@@ -261,18 +267,19 @@ func (b *Book) Flush() {
 }
 
 type Flip struct {
-	Item     string
-	Quality  int
-	From, To string
-	BuyFor   int64  // cheapest price
-	SellFor  int64  // best price
-	Mode     string // "instant" = sell into buy orders, "list" = undercut sell orders
-	Profit   int64  // profit on the first one
-	Percent  float64
+	Item       string
+	Quality    int
+	From, To   string
+	BuyFor     int64  // cheapest price
+	SellFor    int64  // best price
+	Mode       string // "instant" = sell into buy orders, "list" = undercut sell orders
+	Profit     int64  // profit on the first one
+	Percent    float64
 	Qty        int     // how many you can flip before it stops being worth it
 	Total      int64   // profit on all of them
 	Cost       int64   // silver needed to buy all of them
 	Public     bool    // uses a public price, so the quantity isn't known
+	Est        bool    // a list flip: the quantity is capped at an estimate, not certain
 	Confidence float64 // 1 for just-seen prices, falling to 0 at the age limit
 	Age        time.Duration
 }
@@ -310,17 +317,25 @@ func match(sells, buys []Level, tax float64) (qty int, total, cost int64) {
 // listFill is the "list a sell order" version of match. You buy the cheapest
 // sell orders in one city and, in another, list them yourself at the going
 // rate (proceeds, already after tax and the listing fee). You keep buying for
-// as long as each one still costs less than you'd net. There's no limit from
-// the other side, so this is an upper bound: listing a lot undercuts yourself.
-func listFill(sells []Level, proceeds int64) (qty int, total, cost int64) {
+// as long as each one still costs less than you'd net, but only up to limit:
+// a trade needs a buyer too, and the far market only absorbs about what's
+// already listed there, so listing far more than that just undercuts yourself.
+func listFill(sells []Level, proceeds int64, limit int) (qty int, total, cost int64) {
 	for _, l := range sells {
+		if qty >= limit {
+			break
+		}
 		net := proceeds - l.Price
 		if net <= 0 {
 			break
 		}
-		qty += l.Amount
-		total += int64(l.Amount) * net
-		cost += int64(l.Amount) * l.Price
+		take := l.Amount
+		if take > limit-qty {
+			take = limit - qty
+		}
+		qty += take
+		total += int64(take) * net
+		cost += int64(take) * l.Price
 	}
 	return qty, total, cost
 }
@@ -347,7 +362,8 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 	var out []Flip
 	for _, list := range byItem {
 		for _, from := range list {
-			if from.City == "" || from.Sell == 0 || now.Sub(from.SellSeen) > maxAge {
+			// You can't buy from the Black Market, so it's never a source.
+			if from.City == "" || from.City == blackMarket || from.Sell == 0 || now.Sub(from.SellSeen) > maxAge {
 				continue
 			}
 			sells := from.SellLevels
@@ -374,13 +390,26 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 				}
 
 				// List your own sell order, undercutting the cheapest one there.
+				// Can't list at the Black Market, so it's never a list target.
 				var liProfit, liTotal, liCost int64
 				var liQty int
-				if to.Sell > 0 && now.Sub(to.SellSeen) <= maxAge {
+				if to.Sell > 0 && to.City != blackMarket && now.Sub(to.SellSeen) <= maxAge {
 					proceeds := int64(float64(to.Sell) * (1 - tax - setupFee))
 					if p := proceeds - from.Sell; p > 0 {
+						// Cap at what's already listed there (how many the market
+						// normally holds). A public price has no amounts, so cap at 1.
+						limit := 1
+						if !to.SellPublic {
+							limit = 0
+							for _, l := range to.SellLevels {
+								limit += l.Amount
+							}
+							if limit < 1 {
+								limit = 1
+							}
+						}
 						liProfit = p
-						liQty, liTotal, liCost = listFill(sells, proceeds)
+						liQty, liTotal, liCost = listFill(sells, proceeds, limit)
 					}
 				}
 
@@ -401,6 +430,7 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 					f.Mode, f.SellFor = "list", to.Sell
 					f.Profit, f.Qty, f.Total, f.Cost = liProfit, liQty, liTotal, liCost
 					f.Public = from.SellPublic || to.SellPublic
+					f.Est = true // the quantity is a capped estimate, not certain
 					sellSeen = to.SellSeen
 				}
 				// Take off the cost of hauling, and on a dangerous route the
@@ -410,7 +440,7 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 				if dangerousRoute(f.From, f.To) {
 					r = risk
 				}
-				f.Profit = int64((1-r)*float64(f.Profit)-r*float64(f.BuyFor)-haul)
+				f.Profit = int64((1-r)*float64(f.Profit) - r*float64(f.BuyFor) - haul)
 				f.Total = int64((1-r)*float64(f.Total) - r*float64(f.Cost) - haul*float64(f.Qty))
 				if f.Total <= 0 {
 					continue

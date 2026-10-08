@@ -43,7 +43,10 @@ func (b *Book) bestPrices(maxAge time.Duration) (cheapest, highest map[string]Qu
 		if p.Quality > 1 || p.City == "" {
 			continue
 		}
-		if p.Sell > 0 && now.Sub(p.SellSeen) <= maxAge {
+		// You can't buy from the Black Market, so its sell prices are never a
+		// place to buy materials or a finished item from. (You can still sell
+		// into its buy orders, so it stays in highest below.)
+		if p.Sell > 0 && p.City != blackMarket && now.Sub(p.SellSeen) <= maxAge {
 			if q, ok := cheapest[p.Item]; !ok || p.Sell < q.Price {
 				cheapest[p.Item] = Quote{p.Sell, p.City, p.SellSeen, p.SellPublic}
 			}
@@ -153,20 +156,20 @@ func (b *Book) finishedQualities(maxAge time.Duration) map[string]map[int][2]int
 }
 
 type Craft struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Tier       string     `json:"tier"`
-	Category   string     `json:"category"`
-	Cost       int64      `json:"cost"`       // materials + station fee per item, after returns
-	Fee        int64      `json:"fee"`        // station fee per item
-	Instant    int64      `json:"instant"`    // best buy order
-	InstantAt  string     `json:"instantAt"`  //
-	List       int64      `json:"list"`       // cheapest sell order
-	ListAt     string     `json:"listAt"`     //
-	Profit     int64      `json:"profit"`     // selling instantly, after tax
-	ListProfit int64      `json:"listProfit"` // listing a sell order, after tax and fee
-	Percent    float64    `json:"percent"`
-	AgeMin     int        `json:"ageMin"`
+	ID         string         `json:"id"`
+	Name       string         `json:"name"`
+	Tier       string         `json:"tier"`
+	Category   string         `json:"category"`
+	Cost       int64          `json:"cost"`       // materials + station fee per item, after returns
+	Fee        int64          `json:"fee"`        // station fee per item
+	Instant    int64          `json:"instant"`    // best buy order
+	InstantAt  string         `json:"instantAt"`  //
+	List       int64          `json:"list"`       // cheapest sell order
+	ListAt     string         `json:"listAt"`     //
+	Profit     int64          `json:"profit"`     // selling instantly, after tax
+	ListProfit int64          `json:"listProfit"` // listing a sell order, after tax and fee
+	Percent    float64        `json:"percent"`
+	AgeMin     int            `json:"ageMin"`
 	Public     bool           `json:"public"` // uses at least one public price
 	Materials  []Material     `json:"materials"`
 	Qualities  []CraftQuality `json:"qualities"` // what it sells for at each quality, if more than Normal seen

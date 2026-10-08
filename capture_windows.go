@@ -22,6 +22,7 @@ func main() {
 	app := NewApp("prices.json")
 	h := NewHistory("history.jsonl")
 	app.hist, app.book.hist = h, h
+	h.seedFrom(app.book) // don't re-log prices that haven't changed since last run
 	flushOnExit(app)
 
 	fmt.Println("Albion market sniffer")

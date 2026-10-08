@@ -75,22 +75,23 @@ func tier(id string) string {
 }
 
 type flipJSON struct {
-	ID      string  `json:"id"`
-	Name    string  `json:"name"`
-	Tier    string  `json:"tier"`
-	Quality int     `json:"quality"`
-	From    string  `json:"from"`
-	To      string  `json:"to"`
-	Buy     int64   `json:"buy"`
-	Sell    int64   `json:"sell"`
-	Mode    string  `json:"mode"` // "instant" or "list"
-	Profit  int64   `json:"profit"`
-	Percent float64 `json:"percent"`
-	Qty     int     `json:"qty"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	Tier       string  `json:"tier"`
+	Quality    int     `json:"quality"`
+	From       string  `json:"from"`
+	To         string  `json:"to"`
+	Buy        int64   `json:"buy"`
+	Sell       int64   `json:"sell"`
+	Mode       string  `json:"mode"` // "instant" or "list"
+	Profit     int64   `json:"profit"`
+	Percent    float64 `json:"percent"`
+	Qty        int     `json:"qty"`
 	Total      int64   `json:"total"`
-	Cost       int64   `json:"cost"`       // silver to buy all of them
-	Weight     float64 `json:"weight"`     // kg for one
+	Cost       int64   `json:"cost"`   // silver to buy all of them
+	Weight     float64 `json:"weight"` // kg for one
 	Public     bool    `json:"public"`
+	Est        bool    `json:"est"`        // a list flip: quantity is a capped estimate
 	Confidence float64 `json:"confidence"` // 1 = just seen, 0 = at the age limit
 	AgeMin     int     `json:"ageMin"`
 }
@@ -127,7 +128,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, c
 			From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
 			Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
 			Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
-			Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
+			Est: f.Est, Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
 		})
 	}
 	trips := planTrips(out, carryKg, budget)
