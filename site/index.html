@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Albion Econ Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #1b2027; --panel: #222932; --line: #333c48; --text: #d9dee5; --muted: #8b95a3;
+  --gold: #e3b341; --gold-dim: #8a7034; --warn: #d45b6a; --ok: #7fb58a;
+  --serif: "Alegreya", Georgia, serif; --sans: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 16px/1.45 var(--sans); }
+a { color: var(--gold); }
+header { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font: 700 24px/1.2 var(--serif); margin: 0 0 4px; }
+.sub { color: var(--muted); font-size: 15px; }
+.warn { color: #f0c6cc; }
+.desktop-note { color: var(--muted); font-size: 14px; margin-top: 6px; }
+.tabs { display: flex; gap: 4px; margin: 0; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button {
+  background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted);
+  font: 700 18px var(--serif); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
+.tabs button span { font: 500 14px var(--sans); color: var(--muted); margin-left: 6px; }
+main { padding: 16px 20px 48px; }
+.tools { margin: 0 0 14px; }
+input[type=search] {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px;
+  color: inherit; font: inherit; width: 100%; max-width: 360px;
+}
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 14px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.num, td.num { text-align: right; }
+td { padding: 9px 10px; border-bottom: 1px solid #262e38; white-space: nowrap; }
+tbody tr:hover td { background: var(--panel); }
+td.item { font-family: var(--serif); font-size: 17px; }
+td.item .id { display: block; font: 13px var(--sans); color: var(--muted); }
+td.profit { color: var(--gold); font-weight: 600; }
+td.stale { color: var(--warn); }
+.tier { color: var(--muted); }
+.sub2 { display: block; font-size: 13px; color: var(--muted); }
+.tag { display: inline-block; font-size: 12px; line-height: 1; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
+.empty { color: var(--muted); padding: 24px 10px; }
+tr.clickable { cursor: pointer; }
+.chart-legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin: 6px 0; flex-wrap: wrap; }
+.chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: 1px; }
+svg { width: 100%; height: auto; background: #1e242c; border: 1px solid var(--line); border-radius: 6px; }
+@media (max-width: 600px) { th, td { padding: 7px 8px; } header, main, .tabs { padding-left: 14px; padding-right: 14px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Albion Econ Manager</h1>
+  <div class="sub" id="updated">Loading…</div>
+  <div class="desktop-note">Public prices only, from the Albion Data Project. For live prices from your own game, use the desktop sniffer.</div>
+</header>
+
+<div class="tabs" role="tablist">
+  <button role="tab" id="tab-flips" aria-selected="true">Flips<span id="n-flips"></span></button>
+  <button role="tab" id="tab-crafts" aria-selected="false">Crafting<span id="n-crafts"></span></button>
+  <button role="tab" id="tab-prices" aria-selected="false">All prices<span id="n-prices"></span></button>
+</div>
+
+<main>
+  <section id="panel-flips">
+    <div class="table-wrap"><table><thead><tr>
+      <th>Item</th><th>Buy in</th><th>Sell in</th><th class="num">Buy for</th><th class="num">Sell for</th>
+      <th class="num">Each</th><th class="num">Total</th><th class="num">Best usual</th><th class="num">Reliability</th><th class="num">vs normal</th><th>Swing</th>
+    </tr></thead><tbody id="flip-rows"></tbody></table></div>
+  </section>
+  <section id="panel-crafts" hidden>
+    <div class="table-wrap"><table><thead><tr>
+      <th>Item</th><th class="num">Materials</th><th class="num">Sell now</th><th class="num">List for</th><th class="num">Best profit</th><th class="num">Reliability</th>
+    </tr></thead><tbody id="craft-rows"></tbody></table></div>
+  </section>
+  <section id="panel-prices" hidden>
+    <div class="tools"><input type="search" id="search" placeholder="Search items or cities" aria-label="Search prices"></div>
+    <div class="table-wrap"><table><thead><tr>
+      <th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell</th><th class="num">Age</th>
+    </tr></thead><tbody id="price-rows"></tbody></table></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => (n == null ? "–" : Number(n).toLocaleString("en-GB"));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ago = m => m < 1 ? "now" : m < 60 ? m + "m" : Math.floor(m / 60) + "h";
+const QUALITY = ["", "Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
+let current = null, prices = null, tab = "flips";
+const chartOpen = new Set(), chartCache = {};
+
+function showTab(name) {
+  tab = name;
+  ["flips", "crafts", "prices"].forEach(t => {
+    $("tab-" + t).setAttribute("aria-selected", t === name);
+    $("panel-" + t).hidden = t !== name;
+  });
+  if (name === "prices" && prices === null) loadPrices();
+}
+["flips", "crafts", "prices"].forEach(t => $("tab-" + t).addEventListener("click", () => showTab(t)));
+
+function vsNormalText(f) {
+  if (!f.vsNormalOk) return "–";
+  const v = Math.round(Math.abs(f.vsNormal));
+  if (v === 0) return "at normal";
+  return v + "% " + (f.vsNormal < 0 ? "below" : "above");
+}
+
+function renderFlips() {
+  const rows = current.flips || [];
+  $("n-flips").textContent = fmt(current.flipCount);
+  $("flip-rows").innerHTML = rows.length ? rows.map(f => `
+    <tr>
+      <td class="item">${esc(f.name)} <span class="tier">${esc(f.tier)}</span><span class="id">${QUALITY[f.quality] || ""}, ${esc(f.id)}</span></td>
+      <td>${esc(f.from)}</td><td>${esc(f.to)}</td>
+      <td class="num">${fmt(f.buy)}</td>
+      <td class="num">${fmt(f.sell)}<span class="sub2">${f.check ? "check this" : f.mode === "list" ? "list here" : "sell now"}</span></td>
+      <td class="num">+${fmt(f.profit)}<span class="sub2">${f.percent.toFixed(0)}%</span></td>
+      <td class="num profit">${f.est ? "≈" : "+"}${fmt(f.total)}${f.est ? '<span class="sub2">est.</span>' : ""}</td>
+      <td class="num">${f.relOk ? "+" + fmt(Math.round(f.total * f.reliability)) : "–"}</td>
+      <td class="num">${f.relOk ? Math.round(f.reliability * 100) + "%" : "–"}</td>
+      <td class="num">${vsNormalText(f)}</td>
+      <td>${f.swingOk ? esc(f.swingLabel) : "–"}</td>
+    </tr>`).join("") : `<tr><td colspan="11" class="empty">No flips right now.</td></tr>`;
+}
+
+function renderCrafts() {
+  const rows = (current.crafts || []).filter(c => Math.max(c.profit || 0, c.listProfit || 0) > 0);
+  $("n-crafts").textContent = fmt(rows.length);
+  $("craft-rows").innerHTML = rows.length ? rows.map(c => {
+    const best = Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);
+    return `<tr>
+      <td class="item">${esc(c.name)} <span class="tier">${esc(c.tier)}</span></td>
+      <td class="num">${fmt(c.cost)}</td>
+      <td class="num">${c.instant ? fmt(c.instant) : "–"}</td>
+      <td class="num">${c.list ? fmt(c.list) : "–"}</td>
+      <td class="num profit">+${fmt(best)}</td>
+      <td class="num">${c.relOk ? Math.round(c.reliability * 100) + "%" : "–"}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">No profitable crafts right now.</td></tr>`;
+}
+
+async function loadPrices() {
+  try { prices = await (await fetch("data/prices.json")).json(); }
+  catch (e) { prices = []; }
+  $("n-prices").textContent = fmt(prices.length);
+  renderPrices();
+}
+$("search").addEventListener("input", renderPrices);
+
+function priceKey(p) { return p.id + "|" + p.quality + "|" + p.cityId; }
+
+function renderPrices() {
+  if (!prices) return;
+  const q = $("search").value.trim().toLowerCase();
+  const rows = prices.filter(p => !q || `${p.name} ${p.id} ${p.city}`.toLowerCase().includes(q)).slice(0, 1000);
+  $("price-rows").innerHTML = rows.length ? rows.map(p => {
+    const k = priceKey(p);
+    const row = `<tr class="clickable" data-key="${esc(k)}">
+      <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="id">${QUALITY[p.quality] || ""}, ${esc(p.id)}</span></td>
+      <td>${esc(p.city)}</td>
+      <td class="num">${p.sell ? fmt(p.sell) : "–"}</td>
+      <td class="num">${p.buy ? fmt(p.buy) : "–"}${p.check ? '<span class="tag">check this</span>' : ""}</td>
+      <td class="num ${p.ageMin >= 60 ? "stale" : ""}">${ago(p.ageMin)}</td>
+    </tr>`;
+    const chart = chartOpen.has(k) ? `<tr><td colspan="5">${chartCache[k] || "Loading chart…"}</td></tr>` : "";
+    return row + chart;
+  }).join("") : `<tr><td colspan="5" class="empty">${q ? "Nothing matches." : "No prices."}</td></tr>`;
+}
+
+$("price-rows").addEventListener("click", async e => {
+  const tr = e.target.closest("tr.clickable");
+  if (!tr) return;
+  const k = tr.dataset.key;
+  if (chartOpen.has(k)) { chartOpen.delete(k); renderPrices(); return; }
+  chartOpen.add(k); renderPrices();
+  const [item, quality, city] = k.split("|");
+  try {
+    const summ = await (await fetch("data/items/" + encodeURIComponent(item) + ".json")).json();
+    chartCache[k] = chartSVG(summ.filter(s => s.quality == quality && s.city == city), item, city);
+  } catch (err) { chartCache[k] = "No history yet for this item."; }
+  renderPrices();
+});
+
+// chartSVG draws daily median sell (muted) and buy (gold) lines, with a shaded
+// normal range behind the sell line.
+function chartSVG(days, item, city) {
+  const sell = days.filter(d => d.side === "sell").sort((a, b) => a.day < b.day ? -1 : 1);
+  const buy = days.filter(d => d.side === "buy").sort((a, b) => a.day < b.day ? -1 : 1);
+  if (!sell.length && !buy.length) return `<p class="sub">No history yet for ${esc(item)} in ${esc(city)}.</p>`;
+  const sMed = sell.map(d => d.median), all = sMed.concat(buy.map(d => d.median));
+  const sorted = [...sMed].sort((a, b) => a - b);
+  const pct = p => sorted.length ? sorted[Math.min(sorted.length - 1, Math.round(p * (sorted.length - 1)))] : 0;
+  const normal = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  let vMin = Math.min(...all), vMax = Math.max(...all);
+  if (sorted.length) { vMin = Math.min(vMin, pct(0.25)); vMax = Math.max(vMax, pct(0.75)); }
+  if (vMax === vMin) vMax = vMin + 1;
+  const W = 640, H = 160, padX = 50, padY = 14, n = Math.max(sell.length, buy.length, 2);
+  const x = i => padX + (i / (n - 1)) * (W - padX - 8);
+  const y = v => H - padY - (v - vMin) / (vMax - vMin) * (H - padY * 2);
+  const poly = (arr, color) => arr.length ? `<polyline points="${arr.map((d, i) => `${x(i).toFixed(1)},${y(d.median).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2"/>` : "";
+  const band = sorted.length >= 3 ? `<rect x="${padX}" y="${y(pct(0.75)).toFixed(1)}" width="${(W - 8 - padX).toFixed(1)}" height="${Math.max(1, y(pct(0.25)) - y(pct(0.75))).toFixed(1)}" fill="var(--gold)" opacity="0.08"/><line x1="${padX}" y1="${y(normal).toFixed(1)}" x2="${W - 8}" y2="${y(normal).toFixed(1)}" stroke="var(--gold-dim)" stroke-dasharray="4 4"/>` : "";
+  return `<div class="chart-legend"><span><i style="background:var(--muted)"></i>Cheapest to buy</span><span><i style="background:var(--gold)"></i>Best to sell</span>${sorted.length >= 3 ? '<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>' : ""}</div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily price">${band}
+    <text x="${padX - 6}" y="${(y(vMax) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(Math.round(vMax))}</text>
+    <text x="${padX - 6}" y="${(y(vMin) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(Math.round(vMin))}</text>
+    ${poly(sell, "var(--muted)")}${poly(buy, "var(--gold)")}</svg>`;
+}
+
+function minsAgo(iso) { return Math.round((Date.now() - Date.parse(iso)) / 60000); }
+
+async function load() {
+  try { current = await (await fetch("data/current.json?t=" + Date.now())).json(); }
+  catch (e) { $("updated").innerHTML = '<span class="warn">Couldn\'t load the data yet. Check back soon.</span>'; return; }
+  const m = minsAgo(current.updated);
+  const stale = m > 360;
+  $("updated").innerHTML = `Updated ${ago(m)} ago.${current.learningDays ? " Learning from " + current.learningDays + " days of history." : ""}${stale ? ' <span class="warn">This data is over 6 hours old.</span>' : ""}`;
+  renderFlips();
+  renderCrafts();
+  $("n-prices").textContent = fmt(current.priceCount);
+}
+load();
+</script>
+</body>
+</html>

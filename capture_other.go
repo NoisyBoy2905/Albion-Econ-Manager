@@ -15,8 +15,18 @@ func main() {
 	demo := flag.Bool("demo", false, "show the window with made-up prices")
 	replay := flag.String("replay", "", "print every message in a recording")
 	find := flag.Float64("find", 0, "with -replay: only show messages containing this number")
+	cloud := flag.Bool("cloud", false, "download public prices, update history, write website data, then exit")
+	outDir := flag.String("out", "site/data", "with -cloud: folder to write website data into")
+	dataDir := flag.String("data", "history-data", "with -cloud: folder holding the price book and history")
 	flag.Parse()
 	if runExportHistoryFlag() {
+		return
+	}
+	if *cloud {
+		if err := runCloud(*outDir, *dataDir, regions["europe"], time.Second); err != nil {
+			fmt.Println(err)
+			os.Exit(1) // fail the Action and keep the old data
+		}
 		return
 	}
 	if *replay != "" && *find != 0 {
@@ -41,9 +51,9 @@ func main() {
 	loadItemNames()
 	loadRecipes()
 	os.Remove("demo-prices.json")
-	os.Remove("demo-history.jsonl")
+	os.RemoveAll("demo-history")
 	app := NewApp("demo-prices.json")
-	h := NewHistory("demo-history.jsonl")
+	h := NewHistory("demo-history")
 	app.hist, app.book.hist = h, h
 	flushOnExit(app)
 	app.adapters = 2

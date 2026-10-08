@@ -43,6 +43,7 @@ type App struct {
 	hist       *History      // price history log, nil if not recording
 	csvTax     float64       // tax and age from the last window poll, so the
 	csvAge     time.Duration // flips.csv matches what you're looking at
+	lastSnap   time.Time     // when we last recorded a flip-reliability snapshot
 }
 
 func NewApp(pricesFile string) *App {

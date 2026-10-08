@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,7 +138,7 @@ func (a *App) fetchPublic(base string, wait time.Duration) {
 		err := getJSON(client, addr, &rows)
 		if err != nil {
 			// one retry after a longer pause, in case we hit the limit
-			time.Sleep(10 * time.Second)
+			time.Sleep(publicRetryWait)
 			err = getJSON(client, addr, &rows)
 		}
 		if err != nil {
@@ -164,9 +165,15 @@ func (a *App) fetchPublic(base string, wait time.Duration) {
 	a.saveFlips()
 }
 
+// userAgent is sent with public-price requests; cloud mode overrides it.
+var userAgent = "albion-market-sniffer (personal tool)"
+
+// publicRetryWait is the pause before retrying a failed request (tests set 0).
+var publicRetryWait = 10 * time.Second
+
 func getJSON(c *http.Client, addr string, into any) error {
 	req, _ := http.NewRequest("GET", addr, nil)
-	req.Header.Set("User-Agent", "albion-market-sniffer (personal tool)")
+	req.Header.Set("User-Agent", userAgent)
 	res, err := c.Do(req)
 	if err != nil {
 		return err
@@ -203,8 +210,9 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 					e.Sell, e.SellSeen, e.SellPublic = r.SellMin, t, true
 					e.SellLevels = []Level{{r.SellMin, 1}}
 					fresh = true
+					susp, reason := judgeSell(r.SellMin, b.fair[r.Item+"|"+strconv.Itoa(r.Quality)], e.Buy)
 					b.hist.record(HistoryRecord{Time: t.Format(time.RFC3339), Item: r.Item, Quality: r.Quality,
-						City: city, Side: "sell", Price: r.SellMin, Source: "public"})
+						City: city, Side: "sell", Price: r.SellMin, Source: "public", Suspicious: susp, Reason: reason})
 				}
 			}
 		}
@@ -217,8 +225,9 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 					e.Buy, e.BuySeen, e.BuyPublic = r.BuyMax, t, true
 					e.BuyLevels = []Level{{r.BuyMax, 1}}
 					fresh = true
+					susp, reason := judgeBuy(r.BuyMax, b.fair[r.Item+"|"+strconv.Itoa(r.Quality)])
 					b.hist.record(HistoryRecord{Time: t.Format(time.RFC3339), Item: r.Item, Quality: r.Quality,
-						City: city, Side: "buy", Price: r.BuyMax, Source: "public"})
+						City: city, Side: "buy", Price: r.BuyMax, Source: "public", Suspicious: susp, Reason: reason})
 				}
 			}
 		}
@@ -226,6 +235,9 @@ func (b *Book) AddPublic(rows []apiPrice) int {
 			b.Prices[k] = e
 			added++
 		}
+	}
+	if added > 0 {
+		b.gen++ // prices changed, so the clean snapshot is stale
 	}
 	b.hist.flush()
 	return added

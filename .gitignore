@@ -3,6 +3,13 @@ flips.csv
 *.exe
 *.albrec
 history.jsonl
+history.jsonl.old
 history-export.csv
 demo-prices.json
 demo-history.jsonl
+# price history and generated data (kept locally / on the data branch, not main)
+history/
+demo-history/
+history-data/
+data/
+site/data/

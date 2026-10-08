@@ -21,7 +21,22 @@ embedded HTML page. Keep comments short and plain, like the ones already here.
 5. **Write a realistic test first.** For any money maths, write a small, real
    example as a test (like the Martlock flip in `sniffer_test.go`) and sanity
    check the result: would a real player actually make this much?
-6. **Run every check, every time, before saying "done":**
+6. **One listing isn't a market price.** Players post joke and troll prices.
+   Always judge a price against the same item's buy AND sell orders across
+   cities before using it. Buy orders show what someone will actually pay;
+   sell listings only show what someone hopes to get.
+7. **Filtering rules belong in one shared function, not copied into each
+   feature.** The troll/junk filter lives in `sanity.go` (`sanitize`), and
+   every feature reads prices through `Book.clean`.
+7a. **Never invent a score.** If there isn't enough history (fewer than 3 days
+   or 5 snapshots), show "not enough history yet" / "–", not a made-up number.
+7b. **History, stats and sanity code stay Linux-safe** (no pcap / Windows), so
+   the same analysis runs in the cloud. Check with `GOOS=linux go build ./...`.
+7c. **Cloud mode writes no good data on a failed download.** `runCloud` returns
+   an error before writing the site files, so the Action fails and the old site
+   stays up. Never commit generated data or secrets to `main`; history lives on
+   the `data` branch and the only token is the built-in `GITHUB_TOKEN`.
+8. **Run every check, every time, before saying "done":**
    - `gofmt -w .`
    - `go vet ./...` and `GOOS=windows go vet ./...` (the capture code is
      Windows-only, behind build tags)

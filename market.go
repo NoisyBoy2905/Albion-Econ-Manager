@@ -90,6 +90,12 @@ type Price struct {
 	BuyLevels  []Level // all buy orders, highest first
 	BuySeen    time.Time
 	BuyPublic  bool
+
+	// Transient, set by sanitize for one computation and never saved: trusted
+	// means the sell side has enough data to use for list flips / crafting;
+	// check means the best buy is suspiciously high (keep it, but flag it).
+	trusted bool
+	check   bool
 }
 
 // Drop prices we haven't seen on either side for this long, so prices.json
@@ -102,6 +108,28 @@ type Book struct {
 	path      string
 	saveTimer *time.Timer // a pending debounced save, if any
 	hist      *History    // price history log, nil if not recording
+
+	fair map[string]int64 // item|quality -> fair price, refreshed by clean()
+	gen  int              // bumped on every change, to invalidate the clean cache
+	// the cached clean snapshot, keyed by (gen, maxAge)
+	sanGen    int
+	sanAge    time.Duration
+	sanClean  map[string]*Price
+	sanHidden []HiddenPrice
+}
+
+// clean returns the sanitized snapshot of the book (troll and junk prices
+// removed), caching it until the next change or a different age window. Every
+// feature reads prices through here, so they all filter the same way.
+func (b *Book) clean(maxAge time.Duration) (map[string]*Price, []HiddenPrice) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.sanClean != nil && b.sanGen == b.gen && b.sanAge == maxAge {
+		return b.sanClean, b.sanHidden
+	}
+	clean, hidden, fair := sanitize(b.Prices, maxAge)
+	b.sanClean, b.sanHidden, b.sanGen, b.sanAge, b.fair = clean, hidden, b.gen, maxAge, fair
+	return clean, hidden
 }
 
 func NewBook(path string) *Book {
@@ -216,17 +244,23 @@ func (b *Book) Add(orders []Order, city string, divide bool) {
 			e.Buy, e.BuySeen = e.BuyLevels[0].Price, now
 		}
 		if b.hist != nil {
-			ts := now.Format(time.RFC3339)
+			ts := now.UTC().Format(time.RFC3339) // always UTC, so records sort right
+			fair := b.fair[e.Item+"|"+strconv.Itoa(e.Quality)]
 			if len(p.sell) > 0 {
+				susp, reason := judgeSell(e.Sell, fair, e.Buy)
 				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
-					Side: "sell", Price: e.Sell, Amount: e.SellLevels[0].Amount, Levels: e.SellLevels, Source: "own"})
+					Side: "sell", Price: e.Sell, Amount: e.SellLevels[0].Amount, Levels: e.SellLevels,
+					Source: "own", Suspicious: susp, Reason: reason})
 			}
 			if len(p.buy) > 0 {
+				susp, reason := judgeBuy(e.Buy, fair)
 				b.hist.record(HistoryRecord{Time: ts, Item: e.Item, Quality: e.Quality, City: e.City,
-					Side: "buy", Price: e.Buy, Amount: e.BuyLevels[0].Amount, Levels: e.BuyLevels, Source: "own"})
+					Side: "buy", Price: e.Buy, Amount: e.BuyLevels[0].Amount, Levels: e.BuyLevels,
+					Source: "own", Suspicious: susp, Reason: reason})
 			}
 		}
 	}
+	b.gen++        // prices changed, so the clean snapshot is stale
 	b.hist.flush() // nil-safe; writes this page's records to disk
 	b.scheduleSave()
 }
@@ -280,6 +314,7 @@ type Flip struct {
 	Cost       int64   // silver needed to buy all of them
 	Public     bool    // uses a public price, so the quantity isn't known
 	Est        bool    // a list flip: the quantity is capped at an estimate, not certain
+	Check      bool    // relies on a suspiciously high buy order: verify it in game
 	Confidence float64 // 1 for just-seen prices, falling to 0 at the age limit
 	Age        time.Duration
 }
@@ -349,12 +384,12 @@ func listFill(sells []Level, proceeds int64, limit int) (qty int, total, cost in
 // to lose to ganks on a dangerous route. Both default to 0 (no change). A flip
 // that no longer profits once those are taken off is dropped.
 func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPerKg, risk float64) []Flip {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	now := time.Now()
 
+	// Work from the cleaned book, so troll and junk prices never make a flip.
+	prices, _ := b.clean(maxAge)
 	byItem := map[string][]*Price{}
-	for _, p := range b.Prices {
+	for _, p := range prices {
 		k := p.Item + "|" + strconv.Itoa(p.Quality)
 		byItem[k] = append(byItem[k], p)
 	}
@@ -390,10 +425,11 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 				}
 
 				// List your own sell order, undercutting the cheapest one there.
-				// Can't list at the Black Market, so it's never a list target.
+				// Can't list at the Black Market, so it's never a list target. A
+				// lone, unjudgeable listing on either end isn't trusted for this.
 				var liProfit, liTotal, liCost int64
 				var liQty int
-				if to.Sell > 0 && to.City != blackMarket && now.Sub(to.SellSeen) <= maxAge {
+				if to.Sell > 0 && to.City != blackMarket && from.trusted && to.trusted && now.Sub(to.SellSeen) <= maxAge {
 					proceeds := int64(float64(to.Sell) * (1 - tax - setupFee))
 					if p := proceeds - from.Sell; p > 0 {
 						// Cap at what's already listed there (how many the market
@@ -424,13 +460,15 @@ func (b *Book) Flips(tax float64, maxAge time.Duration, freshFirst bool, haulPer
 					Mode: "instant", SellFor: to.Buy,
 					Profit: inProfit, Qty: inQty, Total: inTotal, Cost: inCost,
 					Public: from.SellPublic || to.BuyPublic,
+					Check:  to.check, // instant flip sells into a suspiciously high buy
 				}
 				sellSeen := to.BuySeen
 				if liTotal > inTotal {
 					f.Mode, f.SellFor = "list", to.Sell
 					f.Profit, f.Qty, f.Total, f.Cost = liProfit, liQty, liTotal, liCost
 					f.Public = from.SellPublic || to.SellPublic
-					f.Est = true // the quantity is a capped estimate, not certain
+					f.Est = true    // the quantity is a capped estimate, not certain
+					f.Check = false // a listing, not a buy order, so nothing to verify
 					sellSeen = to.SellSeen
 				}
 				// Take off the cost of hauling, and on a dangerous route the

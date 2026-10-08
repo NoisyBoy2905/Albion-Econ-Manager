@@ -1,0 +1,80 @@
+name: Update public prices
+
+# Runs every 2 hours (at minute 17, to avoid the busy top of the hour) and
+# whenever you trigger it by hand. It downloads public prices, updates the
+# history and stats, and publishes the website. History lives on a separate
+# "data" branch, force-pushed as a single commit so its git history never grows.
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out the code (main)
+        uses: actions/checkout@v4
+
+      - name: Check out the data branch
+        uses: actions/checkout@v4
+        continue-on-error: true # the branch doesn't exist on the very first run
+        with:
+          ref: data
+          path: data
+
+      - name: Prepare the data folder
+        run: |
+          mkdir -p data/history
+          # decompress stored raw files so the program can read them
+          find data -name '*.gz' -exec gunzip -f {} + 2>/dev/null || true
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Download prices and build the website data
+        run: go run . -cloud -out site/data -data data
+
+      - name: Compress and push the data branch
+        run: |
+          # compress the raw files to keep the branch small
+          find data/history/raw -name '*.jsonl' -exec gzip -f {} + 2>/dev/null || true
+          echo "Data branch size:"
+          du -sh data
+          cd data
+          rm -rf .git                 # keep the data branch at a single commit
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "data $(date -u +%FT%TZ)"
+          git branch -M data
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push -f origin data
+
+      - name: Upload the website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

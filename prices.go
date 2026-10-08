@@ -20,15 +20,15 @@ type PriceRow struct {
 	AgeMin     int    `json:"ageMin"`
 	SellPublic bool   `json:"sellPublic"`
 	BuyPublic  bool   `json:"buyPublic"`
+	Check      bool   `json:"check"` // best buy is suspiciously high: verify in game
 }
 
 // All lists every price we've seen in a known city, newest first.
 func (b *Book) All(maxAge time.Duration, limit int) []PriceRow {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	prices, _ := b.clean(maxAge) // troll and junk prices already removed
 	now := time.Now()
 	out := []PriceRow{}
-	for _, p := range b.Prices {
+	for _, p := range prices {
 		if p.City == "" {
 			continue
 		}
@@ -50,7 +50,7 @@ func (b *Book) All(maxAge time.Duration, limit int) []PriceRow {
 			}
 		}
 		if p.Buy > 0 && now.Sub(p.BuySeen) <= maxAge {
-			r.Buy, r.BuyPublic = p.Buy, p.BuyPublic
+			r.Buy, r.BuyPublic, r.Check = p.Buy, p.BuyPublic, p.check
 			if len(p.BuyLevels) > 0 {
 				r.BuyAmount = p.BuyLevels[0].Amount
 			}

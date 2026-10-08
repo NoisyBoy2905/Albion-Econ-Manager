@@ -92,52 +92,73 @@ type flipJSON struct {
 	Weight     float64 `json:"weight"` // kg for one
 	Public     bool    `json:"public"`
 	Est        bool    `json:"est"`        // a list flip: quantity is a capped estimate
+	Check      bool    `json:"check"`      // relies on a suspiciously high buy: verify in game
 	Confidence float64 `json:"confidence"` // 1 = just seen, 0 = at the age limit
 	AgeMin     int     `json:"ageMin"`
+	// learned from history (ok flags false when there isn't enough):
+	Reliability float64 `json:"reliability"`
+	RelOK       bool    `json:"relOk"`
+	VsNormal    float64 `json:"vsNormal"`
+	VsNormalOK  bool    `json:"vsNormalOk"`
+	Swing       float64 `json:"swing"`
+	SwingLabel  string  `json:"swingLabel"`
+	SwingOK     bool    `json:"swingOk"`
 }
 
 type stateJSON struct {
-	Listening  bool          `json:"listening"`
-	Adapters   int           `json:"adapters"`
-	Zone       string        `json:"zone"`
-	ZoneName   string        `json:"zoneName"`
-	InMarket   bool          `json:"inMarket"`
-	Packets    int           `json:"packets"`
-	Orders     int           `json:"orders"`
-	Prices     int           `json:"prices"`
-	Encrypted  int           `json:"encrypted"`
-	LastPacket int           `json:"lastPacketSec"` // seconds ago, -1 if never
-	Flips      []flipJSON    `json:"flips"`
-	Crafts     []Craft       `json:"crafts"`
-	Trips      []Trip        `json:"trips"`
-	All        []PriceRow    `json:"all"`
-	Recording  recordingJSON `json:"recording"`
-	Public     publicJSON    `json:"public"`
-	Events     []Event       `json:"events"`
+	Listening    bool          `json:"listening"`
+	Adapters     int           `json:"adapters"`
+	Zone         string        `json:"zone"`
+	ZoneName     string        `json:"zoneName"`
+	InMarket     bool          `json:"inMarket"`
+	Packets      int           `json:"packets"`
+	Orders       int           `json:"orders"`
+	Prices       int           `json:"prices"`
+	Encrypted    int           `json:"encrypted"`
+	LastPacket   int           `json:"lastPacketSec"` // seconds ago, -1 if never
+	Flips        []flipJSON    `json:"flips"`
+	Crafts       []Craft       `json:"crafts"`
+	Trips        []Trip        `json:"trips"`
+	All          []PriceRow    `json:"all"`
+	Recording    recordingJSON `json:"recording"`
+	Public       publicJSON    `json:"public"`
+	Events       []Event       `json:"events"`
+	Hidden       []HiddenPrice `json:"hidden"`       // troll/junk prices that were filtered out
+	HiddenCount  int           `json:"hiddenCount"`  // how many in total (Hidden may be capped)
+	LearningDays int           `json:"learningDays"` // days of price history the scores use
 }
 
 func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool, haulPerKg, risk float64) stateJSON {
+	histDir := ""
+	if a.hist != nil {
+		histDir = a.hist.dir
+	}
+	stats := loadStats(histDir, time.Now().UTC())
+
 	flips := a.book.Flips(tax, maxAge, freshFirst, haulPerKg, risk)
 	out := make([]flipJSON, 0, len(flips))
 	for i, f := range flips {
 		if i == 300 {
 			break
 		}
-		out = append(out, flipJSON{
-			ID: f.Item, Name: itemName(f.Item), Tier: tier(f.Item), Quality: f.Quality,
-			From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
-			Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
-			Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
-			Est: f.Est, Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
-		})
+		out = append(out, flipRowJSON(f, stats))
 	}
 	trips := planTrips(out, carryKg, budget)
 	crafts := a.book.Crafts(tax, returnRate, stationFee, maxAge)
+	for i := range crafts {
+		crafts[i].Reliability, crafts[i].RelOK = stats.reliability(craftRelKey(crafts[i].ID, 1))
+	}
 	if len(crafts) > 300 {
 		crafts = crafts[:300]
 	}
+	a.recordSnapshot(histDir, flips, crafts)
 	prices := a.book.Count()
 	all := a.book.All(maxAge, 2000)
+	_, hidden := a.book.clean(maxAge) // the troll/junk prices that were removed
+	hiddenCount := len(hidden)
+	if len(hidden) > 300 {
+		hidden = hidden[:300]
+	}
 	rec := a.recordingState()
 	pub := a.publicState()
 
@@ -155,7 +176,54 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, c
 		Zone: a.city, ZoneName: cityName(a.city), InMarket: inMarket,
 		Packets: a.packets, Orders: a.orders, Prices: prices, Encrypted: a.encrypted,
 		LastPacket: last, Flips: out, Crafts: crafts, Trips: trips, All: all, Events: events, Recording: rec, Public: pub,
+		Hidden: hidden, HiddenCount: hiddenCount, LearningDays: stats.learningDays(),
 	}
+}
+
+// flipRowJSON turns one flip into the shape the window and the website use,
+// attaching the learned scores (reliability, vs normal, swing).
+func flipRowJSON(f Flip, stats *HistStats) flipJSON {
+	fj := flipJSON{
+		ID: f.Item, Name: itemName(f.Item), Tier: tier(f.Item), Quality: f.Quality,
+		From: cityName(f.From), To: cityName(f.To), Mode: f.Mode,
+		Buy: f.BuyFor, Sell: f.SellFor, Profit: f.Profit, Percent: f.Percent,
+		Qty: f.Qty, Total: f.Total, Cost: f.Cost, Weight: itemWeight(f.Item), Public: f.Public,
+		Est: f.Est, Check: f.Check, Confidence: f.Confidence, AgeMin: int(f.Age.Minutes()),
+	}
+	fj.Reliability, fj.RelOK = stats.reliability(flipRelKey(f.Item, f.Quality, f.From, f.To, f.Mode))
+	if s, ok := stats.stat(f.Item, f.Quality, f.From, "sell"); ok {
+		fj.VsNormal, fj.VsNormalOK = float64(f.BuyFor-s.Normal)/float64(s.Normal)*100, true
+		fj.Swing, fj.SwingLabel, fj.SwingOK = s.Swing, swingLabel(s.Swing), true
+	}
+	return fj
+}
+
+// recordSnapshot saves which flips and crafts are profitable right now, at most
+// once every 15 minutes, so reliability can be worked out over time.
+func (a *App) recordSnapshot(histDir string, flips []Flip, crafts []Craft) {
+	if histDir == "" {
+		return
+	}
+	a.mu.Lock()
+	if time.Since(a.lastSnap) < 15*time.Minute {
+		a.mu.Unlock()
+		return
+	}
+	a.lastSnap = time.Now()
+	a.mu.Unlock()
+
+	var keys []string
+	for _, f := range flips {
+		if f.Total > 0 {
+			keys = append(keys, flipRelKey(f.Item, f.Quality, f.From, f.To, f.Mode))
+		}
+	}
+	for _, c := range crafts {
+		if c.Profit > 0 || c.ListProfit > 0 {
+			keys = append(keys, craftRelKey(c.ID, 1))
+		}
+	}
+	recordSnapshot(histDir, time.Now(), keys)
 }
 
 func (a *App) routes() http.Handler {
@@ -243,13 +311,15 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		quality, _ := strconv.Atoi(q.Get("quality"))
-		path := ""
+		dir := ""
 		if a.hist != nil {
 			a.hist.flush() // so the chart sees the latest buffered records
-			path = a.hist.path
+			dir = a.hist.dir
 		}
+		points := pointsFor(dir, q.Get("item"), quality, q.Get("city"))
+		band := normalBand(dir, q.Get("item"), quality, q.Get("city"))
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(pointsFor(path, q.Get("item"), quality, q.Get("city")))
+		json.NewEncoder(w).Encode(map[string]any{"points": points, "band": band})
 	})
 	mux.HandleFunc("/api/history/export", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -261,7 +331,7 @@ func (a *App) routes() http.Handler {
 			return
 		}
 		a.hist.flush()
-		n, err := exportHistory(a.hist.path, "history-export.csv")
+		n, err := exportHistory(a.hist.dir, "history-export.csv")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -119,11 +119,41 @@ The **Get public prices** button downloads prices for about 10,000 items in ever
 
 ## Price history
 
-As well as keeping the latest price, the sniffer appends every price it stores to `history.jsonl`, one JSON object per line (append-only, never rewritten). Each line has the time, item, quality, city (zone ID), side (`sell` or `buy`), price, amount, the full list of order levels (for your own scans), and the source (`own` or `public`). It skips a line if nothing changed since the last one for that item/quality/city/side, so it doesn't fill with duplicates. It's meant to be read later by other projects, like a market simulator.
+The sniffer keeps a small price history and learns from it. Everything is in UTC.
 
-- **Export history** (button in the window) writes `history-export.csv` next to the sniffer, one row per record, with the levels as a short text like `2100x4;2600x10`.
-- From a terminal, `albion-sniffer.exe -export-history` does the same without opening the window.
-- In the **All prices** tab, click any row to see a small chart of that item's cheapest sell and best buy price over time in that city.
+- **Raw records** (the last 3 days) live in `history/raw/<day>.jsonl`, one JSON object per line: time, item, quality, city (zone ID), side (`sell`/`buy`), price, amount, the full order levels (own scans), source (`own`/`public`), and whether it looked like a troll/junk price. A line is skipped if nothing changed, so it doesn't fill with duplicates.
+- **Daily summaries** (kept 90 days) live in `history/daily/<day>.json`: for each item+quality+city+side, the day's min, median, max, snapshot count, last price, and the amount listed (own scans). Troll/junk prices are left out. Older raw files are summarised, then deleted.
+- An old single `history.jsonl` from before this layout is converted into daily summaries on first run and renamed `history.jsonl.old` (kept, not deleted).
+
+From those summaries the window shows, for each flip and craft:
+
+- **Normal price** — the median of the daily medians, so one odd day can't move it.
+- **vs normal** — how far the current price is from normal (e.g. "18% below").
+- **Swing** — how jumpy the price is day to day (steady / normal / jumpy).
+- **Reliability** — the share of recent snapshots where that flip/craft was actually profitable (e.g. "80% of the time").
+- **Best usual profit** — profit × reliability; once there are 3+ days of history the flips sort by this by default, so the top row is profit you can usually count on, not just the biggest number right now.
+- **Sell speed** (own scans) — how fast your listings sell, from the drop in the amount listed between scans.
+
+"–" means there isn't enough history yet (fewer than 3 days or 5 snapshots). The **All prices** chart shades the normal price range behind the line. A line at the top says how many days of history the scores use.
+
+- **Export history** writes `history-export.csv` (from the raw records) next to the sniffer; `albion-sniffer.exe -export-history` does the same from a terminal.
+
+## Website (always online)
+
+A GitHub Actions job can run the public-price side 24/7 for free, so there's a website showing flips, crafts and prices even when your PC is off. It runs every 2 hours, downloads Europe public prices, updates the same history and stats as the desktop app, and publishes a static site with GitHub Pages. The desktop sniffer is unchanged; the website is a separate, public-data-only view (no recording, no live game data, no alerts).
+
+- **Cloud mode** (`go run . -cloud -out site/data -data data`) downloads prices, updates the history under `data/`, and writes `site/data/current.json` (top flips and crafts with reliability), `site/data/prices.json` (every current price, for search) and `site/data/items/<ID>.json` (30 days of daily summaries per item, for the charts). If the download fails it exits non-zero and leaves the old data untouched.
+- History is kept on a separate **`data` branch**, force-pushed as a single commit so the repo doesn't balloon; raw files are stored gzipped.
+
+### Turning it on (one-time setup on GitHub)
+
+1. Push this repo to GitHub (the workflow is `.github/workflows/update.yml`).
+2. **Settings → Pages → Source:** choose **GitHub Actions**.
+3. **Settings → Actions → General → Workflow permissions:** choose **Read and write permissions**, and save.
+4. **Actions** tab → **Update public prices** → **Run workflow** to do the first run by hand (the schedule takes over after that).
+5. When it finishes, the site URL is shown on the workflow run (the **deploy** step) and under **Settings → Pages**. It looks like `https://<your-username>.github.io/<repo>/`.
+
+**Public vs private:** GitHub Pages is free for **public** repos on any plan. On a **private** repo, Pages needs a paid plan (GitHub Pro or above); if you're on the free plan, either make the repo public or run cloud mode on your own host and serve the `site/` folder yourself. The site only ever shows public Albion Data Project prices, nothing personal.
 
 ## Recording game traffic
 

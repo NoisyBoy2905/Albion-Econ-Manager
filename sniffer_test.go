@@ -327,6 +327,142 @@ func TestTripUsesCappedListQty(t *testing.T) {
 	}
 }
 
+// Troll filter: the three real examples from the user's data are removed and
+// make no flips, crafts or trips.
+func TestTrollPricesRemoved(t *testing.T) {
+	recipes = map[string]Recipe{}
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string, q int, price int64, kind string, amount int) Order {
+		return Order{Item: item, Quality: q, Price: price, Amount: amount, Type: kind}
+	}
+	// Each item: one troll listing, plus normal prices in two other cities.
+	b.Add([]Order{o("T6_SHOES_CLOTH_SET2", 2, 111111111, "offer", 1)}, "3008", false)
+	b.Add([]Order{o("T6_SHOES_CLOTH_SET2", 2, 28000, "offer", 3)}, "1002", false)
+	b.Add([]Order{o("T6_SHOES_CLOTH_SET2", 2, 28500, "offer", 2)}, "2004", false)
+	b.Add([]Order{o("T5_MEAL_SOUP", 1, 29111011, "offer", 1)}, "2004", false)
+	b.Add([]Order{o("T5_MEAL_SOUP", 1, 5300, "offer", 4)}, "1002", false)
+	b.Add([]Order{o("T5_MEAL_SOUP", 1, 5400, "offer", 3)}, "3008", false)
+	b.Add([]Order{o("T1_2H_TOOL_PICK", 1, 10000000, "offer", 1)}, "5003", false)
+	b.Add([]Order{o("T1_2H_TOOL_PICK", 1, 142, "offer", 5)}, "1002", false)
+	b.Add([]Order{o("T1_2H_TOOL_PICK", 1, 150, "offer", 5)}, "3008", false)
+
+	_, hidden := b.clean(time.Hour)
+	trolls := map[int64]bool{111111111: true, 29111011: true, 10000000: true}
+	for _, h := range hidden {
+		delete(trolls, h.Price)
+	}
+	if len(trolls) != 0 {
+		t.Fatalf("these troll prices were not hidden: %v", trolls)
+	}
+	// No flip may carry a troll price, and none should be anywhere near its size.
+	for _, f := range b.Flips(0.04, time.Hour, false, 0, 0) {
+		if f.BuyFor >= 1000000 || f.SellFor >= 1000000 || f.Total >= 1000000 {
+			t.Fatalf("a troll price leaked into a flip: %+v", f)
+		}
+	}
+}
+
+// Troll filter: an own scan's troll level is dropped, the cheapest real stays.
+func TestTrollLevelDroppedFromOwnScan(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{
+		{Item: "T4_BAG", Quality: 1, Price: 2100, Amount: 4, Type: "offer"},
+		{Item: "T4_BAG", Quality: 1, Price: 2200, Amount: 10, Type: "offer"},
+		{Item: "T4_BAG", Quality: 1, Price: 99999999, Amount: 1, Type: "offer"},
+	}, "1002", false)
+
+	clean, hidden := b.clean(time.Hour)
+	p := clean[key("T4_BAG", 1, "1002")]
+	if p == nil || p.Sell != 2100 {
+		t.Fatalf("cheapest real price should stay 2100: %+v", p)
+	}
+	for _, l := range p.SellLevels {
+		if l.Price == 99999999 {
+			t.Fatal("troll level 99,999,999 was not dropped")
+		}
+	}
+	found := false
+	for _, h := range hidden {
+		if h.Price == 99999999 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the dropped troll level was not reported as hidden")
+	}
+}
+
+// Troll filter: a 1-silver lowball buy order is ignored.
+func TestLowballBuyIgnored(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(city string, price int64, kind string) Order {
+		return Order{Item: "T4_BAG", Quality: 1, Price: price, Amount: 5, Type: kind}
+	}
+	b.Add([]Order{o("1002", 5000, "offer")}, "1002", false)
+	b.Add([]Order{o("3008", 5100, "offer")}, "3008", false)
+	b.Add([]Order{o("2004", 1, "request")}, "2004", false)
+
+	clean, hidden := b.clean(time.Hour)
+	if p := clean[key("T4_BAG", 1, "2004")]; p != nil && p.Buy != 0 {
+		t.Fatalf("the 1-silver buy order should be dropped: %+v", p)
+	}
+	found := false
+	for _, h := range hidden {
+		if h.Side == "buy" && h.Price == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the lowball buy was not reported as hidden")
+	}
+}
+
+// Troll filter: an ordinary price difference between cities is NOT troll.
+func TestNormalSpreadKept(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{
+		{Item: "T4_BAG", Quality: 1, Price: 5000, Amount: 5, Type: "offer"},
+		{Item: "T4_BAG", Quality: 1, Price: 4500, Amount: 5, Type: "request"},
+	}, "1002", false)
+	b.Add([]Order{
+		{Item: "T4_BAG", Quality: 1, Price: 6500, Amount: 5, Type: "offer"},
+		{Item: "T4_BAG", Quality: 1, Price: 4600, Amount: 5, Type: "request"},
+	}, "3008", false)
+
+	clean, hidden := b.clean(time.Hour)
+	if len(hidden) != 0 {
+		t.Fatalf("a normal spread should hide nothing, hid: %+v", hidden)
+	}
+	if p := clean[key("T4_BAG", 1, "1002")]; p == nil || p.Sell != 5000 {
+		t.Fatalf("5000 sell wrongly removed: %+v", p)
+	}
+	if p := clean[key("T4_BAG", 1, "3008")]; p == nil || p.Sell != 6500 {
+		t.Fatalf("6500 sell wrongly removed: %+v", p)
+	}
+}
+
+// Troll filter: a buy order far above fair is kept, but flagged "check this".
+func TestHighBuyFlaggedNotRemoved(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 5000, Amount: 5, Type: "offer"}}, "1002", false)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 5000, Amount: 5, Type: "offer"}}, "3008", false)
+	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 20000, Amount: 5, Type: "request"}}, "2004", false)
+
+	clean, hidden := b.clean(time.Hour)
+	p := clean[key("T4_BAG", 1, "2004")]
+	if p == nil || p.Buy != 20000 {
+		t.Fatalf("a high buy order should be kept: %+v", p)
+	}
+	if !p.check {
+		t.Fatal("a buy order far above fair should be flagged check")
+	}
+	for _, h := range hidden {
+		if h.Price == 20000 {
+			t.Fatal("a high buy order should be flagged, not hidden")
+		}
+	}
+}
+
 func TestTransportCostAndRisk(t *testing.T) {
 	itemWeights = map[string]float64{"T4_BAG": 2}
 	defer func() { itemWeights = map[string]float64{} }()
@@ -778,11 +914,10 @@ func TestCSVUsesWindowSettings(t *testing.T) {
 }
 
 func TestHistoryRecordsExportAndPoints(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "history.jsonl")
-	h := NewHistory(path)
+	dir := filepath.Join(t.TempDir(), "history")
+	h := NewHistory(dir)
 
-	b := NewBook(filepath.Join(dir, "p.json"))
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
 	b.hist = h
 	// Two scans of the same item: the price changes, then repeats.
 	b.Add([]Order{{Item: "T4_BAG", Quality: 1, Price: 1000, Amount: 4, Type: "offer"},
@@ -793,20 +928,20 @@ func TestHistoryRecordsExportAndPoints(t *testing.T) {
 
 	// pointsFor returns one record per real change (two sell prices), none for
 	// the duplicate scan.
-	pts := pointsFor(path, "T4_BAG", 1, "1002")
+	pts := pointsFor(dir, "T4_BAG", 1, "1002")
 	if len(pts) != 2 {
 		t.Fatalf("expected 2 history points (duplicate deduped), got %d: %+v", len(pts), pts)
 	}
 	if pts[0].Side != "sell" || pts[0].Price != 1000 || pts[1].Price != 900 {
 		t.Fatalf("wrong history points: %+v", pts)
 	}
-	if pointsFor(path, "T4_BAG", 1, "3003") != nil && len(pointsFor(path, "T4_BAG", 1, "3003")) != 0 {
+	if len(pointsFor(dir, "T4_BAG", 1, "3003")) != 0 {
 		t.Fatal("city filter should exclude other cities")
 	}
 
 	// Export to CSV with the compact levels text.
-	csvPath := filepath.Join(dir, "out.csv")
-	n, err := exportHistory(path, csvPath)
+	csvPath := filepath.Join(t.TempDir(), "out.csv")
+	n, err := exportHistory(dir, csvPath)
 	if err != nil || n != 2 {
 		t.Fatalf("export wrote %d rows, err %v", n, err)
 	}
@@ -817,6 +952,263 @@ func TestHistoryRecordsExportAndPoints(t *testing.T) {
 	}
 	if !strings.Contains(text, "time,item,quality,city,side,price,amount,levels,source") {
 		t.Fatalf("missing header:\n%s", text)
+	}
+}
+
+// --- Phase 1: price history that learns ---
+
+func writeDailyT(t *testing.T, dir, day string, median int64, count int) {
+	t.Helper()
+	m := map[string]DaySum{dedupKey("T4_BAG", 1, "1002", "sell"): {
+		Day: day, Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell",
+		Min: median, Median: median, Max: median, Count: count, Last: median}}
+	data, _ := json.Marshal(m)
+	os.WriteFile(filepath.Join(dir, "daily", day+".json"), data, 0644)
+}
+
+func writeRawT(t *testing.T, dir, day string, recs []HistoryRecord) {
+	t.Helper()
+	f, err := os.Create(filepath.Join(dir, "raw", day+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range recs {
+		d, _ := json.Marshal(r)
+		f.Write(append(d, '\n'))
+	}
+	f.Close()
+}
+
+// 1. Seven days near 5,000 with a troll day: normal stays ~5,000.
+func TestNormalPriceIgnoresTroll(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "h")
+	os.MkdirAll(filepath.Join(dir, "daily"), 0755)
+	os.MkdirAll(filepath.Join(dir, "raw"), 0755)
+	now := time.Now().UTC()
+	for d := 1; d <= 6; d++ {
+		writeDailyT(t, dir, now.AddDate(0, 0, -d).Format("2006-01-02"), 5000+int64(d*10), 2)
+	}
+	today := now.Format("2006-01-02")
+	ts := now.Format(time.RFC3339)
+	writeRawT(t, dir, today, []HistoryRecord{
+		{Time: ts, Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell", Price: 5000, Source: "public"},
+		{Time: ts, Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell", Price: 5100, Source: "public"},
+		{Time: ts, Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell", Price: 99999999, Source: "public", Suspicious: true},
+	})
+	summariseRawFile(filepath.Join(dir, "raw", today+".jsonl"), filepath.Join(dir, "daily", today+".json"), today)
+
+	s, ok := loadStats(dir, now).stat("T4_BAG", 1, "1002", "sell")
+	if !ok {
+		t.Fatal("should have enough history")
+	}
+	if s.Normal < 4900 || s.Normal > 5200 {
+		t.Fatalf("normal should be ~5000, got %d", s.Normal)
+	}
+}
+
+// 2. A flip profitable in 6 of 10 snapshots: reliability 60%.
+func TestFlipReliability60(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "h")
+	os.MkdirAll(filepath.Join(dir, "flips"), 0755)
+	now := time.Now().UTC()
+	k := flipRelKey("T4_BAG", 1, "1002", "3003", "instant")
+	for i := 0; i < 10; i++ {
+		var keys []string
+		if i < 6 {
+			keys = []string{k}
+		}
+		recordSnapshot(dir, now.Add(time.Duration(i)*time.Minute), keys)
+	}
+	rel, n := reliabilityFromSnapshots(dir, now)
+	if n != 10 {
+		t.Fatalf("expected 10 snapshots, got %d", n)
+	}
+	if rel[k] < 0.59 || rel[k] > 0.61 {
+		t.Fatalf("reliability should be 0.6, got %v", rel[k])
+	}
+}
+
+// 3. Only 2 days of history: not enough to score.
+func TestNotEnoughHistory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "h")
+	os.MkdirAll(filepath.Join(dir, "daily"), 0755)
+	now := time.Now().UTC()
+	for d := 1; d <= 2; d++ {
+		writeDailyT(t, dir, now.AddDate(0, 0, -d).Format("2006-01-02"), 5000, 5)
+	}
+	if _, ok := loadStats(dir, now).stat("T4_BAG", 1, "1002", "sell"); ok {
+		t.Fatal("two days should not be enough history")
+	}
+}
+
+// 4. Old raw files are summarised then deleted; daily over 90 days is removed.
+func TestRotationSummarisesAndPrunes(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "h")
+	os.MkdirAll(filepath.Join(dir, "raw"), 0755)
+	os.MkdirAll(filepath.Join(dir, "daily"), 0755)
+	now := time.Now().UTC()
+	oldRaw := now.AddDate(0, 0, -5).Format("2006-01-02")
+	writeRawT(t, dir, oldRaw, []HistoryRecord{
+		{Time: now.Format(time.RFC3339), Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell", Price: 5000, Source: "public"}})
+	ancient := now.AddDate(0, 0, -100).Format("2006-01-02")
+	writeDailyT(t, dir, ancient, 1234, 5)
+
+	rotate(dir, now)
+
+	if _, err := os.Stat(filepath.Join(dir, "raw", oldRaw+".jsonl")); !os.IsNotExist(err) {
+		t.Fatal("old raw file should be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "daily", oldRaw+".json")); err != nil {
+		t.Fatal("old raw should have been summarised into a daily file")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "daily", ancient+".json")); !os.IsNotExist(err) {
+		t.Fatal("daily summary over 90 days should be removed")
+	}
+}
+
+// 5. Converting an old history.jsonl gives the same daily medians.
+func TestConvertOldMatchesMedians(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "h")
+	os.MkdirAll(filepath.Join(dir, "daily"), 0755)
+	oldPath := filepath.Join(base, "old.jsonl")
+	day := "2026-10-01"
+	f, _ := os.Create(oldPath)
+	for _, p := range []int64{1000, 3000, 2000} {
+		d, _ := json.Marshal(HistoryRecord{Time: day + "T10:00:00Z", Item: "T4_BAG", Quality: 1, City: "1002", Side: "sell", Price: p, Source: "public"})
+		f.Write(append(d, '\n'))
+	}
+	f.Close()
+
+	convertOld(dir, oldPath)
+
+	data, _ := os.ReadFile(filepath.Join(dir, "daily", day+".json"))
+	m := map[string]DaySum{}
+	json.Unmarshal(data, &m)
+	if s := m[dedupKey("T4_BAG", 1, "1002", "sell")]; s.Median != 2000 {
+		t.Fatalf("daily median should be 2000, got %d", s.Median)
+	}
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatal("old file should be renamed away")
+	}
+	if _, err := os.Stat(oldPath + ".old"); err != nil {
+		t.Fatal("old file should be kept as .old")
+	}
+}
+
+// 6. Listings dropping from 10 to 4 between two own scans: 6 sold.
+func TestSellSpeedCounts(t *testing.T) {
+	scans := []HistoryRecord{
+		{Source: "own", Side: "sell", Levels: []Level{{1000, 10}}},
+		{Source: "own", Side: "sell", Levels: []Level{{1000, 4}}},
+	}
+	if sold := soldBetween(scans); sold != 6 {
+		t.Fatalf("expected 6 sold, got %d", sold)
+	}
+}
+
+// --- Phase 2: cloud mode ---
+
+func readJSONT(t *testing.T, path string, v any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if err := json.Unmarshal(data, v); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+}
+
+func dirSize(dir string) int64 {
+	var total int64
+	filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
+}
+
+// Cloud mode against a fake API writes the website files with the right shape.
+func TestCloudWritesSite(t *testing.T) {
+	publicRetryWait = 0
+	base := t.TempDir()
+	out := filepath.Join(base, "site", "data")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now().UTC().Add(-10 * time.Minute).Format("2006-01-02T15:04:05")
+		fmt.Fprintf(w, `[
+			{"item_id":"T4_BAG","city":"Lymhurst","quality":1,"sell_price_min":4000,"sell_price_min_date":"%s","buy_price_max":0,"buy_price_max_date":"0001-01-01T00:00:00"},
+			{"item_id":"T4_BAG","city":"Black Market","quality":1,"sell_price_min":0,"sell_price_min_date":"0001-01-01T00:00:00","buy_price_max":6000,"buy_price_max_date":"%s"}
+		]`, now, now)
+	}))
+	defer srv.Close()
+
+	if err := runCloud(out, filepath.Join(base, "data"), srv.URL, 0); err != nil {
+		t.Fatal(err)
+	}
+	var cur siteData
+	readJSONT(t, filepath.Join(out, "current.json"), &cur)
+	if cur.Updated == "" || cur.PriceCount == 0 || len(cur.Flips) == 0 {
+		t.Fatalf("current.json looks wrong: %+v", cur)
+	}
+	var prices []PriceRow
+	readJSONT(t, filepath.Join(out, "prices.json"), &prices)
+	if len(prices) == 0 {
+		t.Fatal("prices.json is empty")
+	}
+	var summ []DaySum
+	readJSONT(t, filepath.Join(out, "items", "T4_BAG.json"), &summ)
+	if len(summ) == 0 {
+		t.Fatal("item summary file is empty")
+	}
+}
+
+// A failed download returns an error and leaves the existing data in place.
+func TestCloudFailLeavesData(t *testing.T) {
+	publicRetryWait = 0
+	base := t.TempDir()
+	out := filepath.Join(base, "site", "data")
+	os.MkdirAll(out, 0755)
+	os.WriteFile(filepath.Join(out, "current.json"), []byte(`{"keep":true}`), 0644)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer srv.Close()
+
+	if err := runCloud(out, filepath.Join(base, "data"), srv.URL, 0); err == nil {
+		t.Fatal("expected an error when the download fails")
+	}
+	data, _ := os.ReadFile(filepath.Join(out, "current.json"))
+	if string(data) != `{"keep":true}` {
+		t.Fatalf("existing data was overwritten: %s", data)
+	}
+}
+
+// With lots of items, the written site data stays within a size budget.
+func TestCloudSiteSizeBounded(t *testing.T) {
+	recipes = map[string]Recipe{}
+	base := t.TempDir()
+	histDir := filepath.Join(base, "h")
+	app := NewApp(filepath.Join(base, "p.json"))
+	h := NewHistory(histDir)
+	defer h.Close()
+	app.hist, app.book.hist = h, h
+	for i := 0; i < 2000; i++ {
+		item := fmt.Sprintf("T4_ITEM_%d", i)
+		app.book.Add([]Order{{Item: item, Quality: 1, Price: 1000, Amount: 5, Type: "offer"}}, "1002", false)
+		app.book.Add([]Order{{Item: item, Quality: 1, Price: 2000, Amount: 5, Type: "request"}}, "3003", false)
+	}
+	h.flush()
+	flips := app.book.Flips(0.04, 6*time.Hour, false, 0, 0)
+
+	out := filepath.Join(base, "site")
+	if err := writeSite(out, app, histDir, flips, nil); err != nil {
+		t.Fatal(err)
+	}
+	if size := dirSize(out); size > 50*1024*1024 {
+		t.Fatalf("site data too big for 2000 items: %d bytes", size)
 	}
 }
 

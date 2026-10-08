@@ -35,23 +35,22 @@ type Quote struct {
 // bestPrices finds, for each item at Normal quality, the cheapest sell order
 // and the highest buy order in any city.
 func (b *Book) bestPrices(maxAge time.Duration) (cheapest, highest map[string]Quote) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	prices, _ := b.clean(maxAge) // troll and junk prices already removed
 	now := time.Now()
 	cheapest, highest = map[string]Quote{}, map[string]Quote{}
-	for _, p := range b.Prices {
+	for _, p := range prices {
 		if p.Quality > 1 || p.City == "" {
 			continue
 		}
-		// You can't buy from the Black Market, so its sell prices are never a
-		// place to buy materials or a finished item from. (You can still sell
-		// into its buy orders, so it stays in highest below.)
-		if p.Sell > 0 && p.City != blackMarket && now.Sub(p.SellSeen) <= maxAge {
+		// Cheapest to buy: a trusted sell listing, never the Black Market (you
+		// can't buy from it). trusted drops lone, unjudgeable listings.
+		if p.Sell > 0 && p.City != blackMarket && p.trusted && now.Sub(p.SellSeen) <= maxAge {
 			if q, ok := cheapest[p.Item]; !ok || p.Sell < q.Price {
 				cheapest[p.Item] = Quote{p.Sell, p.City, p.SellSeen, p.SellPublic}
 			}
 		}
-		if p.Buy > 0 && now.Sub(p.BuySeen) <= maxAge {
+		// Best buy to sell into: skip suspiciously high buys for crafting.
+		if p.Buy > 0 && !p.check && now.Sub(p.BuySeen) <= maxAge {
 			if q, ok := highest[p.Item]; !ok || p.Buy > q.Price {
 				highest[p.Item] = Quote{p.Buy, p.City, p.BuySeen, p.BuyPublic}
 			}
@@ -130,11 +129,10 @@ type CraftQuality struct {
 // finishedQualities finds, for each item, the best buy order and cheapest
 // sell order at every quality level in one pass.
 func (b *Book) finishedQualities(maxAge time.Duration) map[string]map[int][2]int64 {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	prices, _ := b.clean(maxAge) // troll and junk prices already removed
 	now := time.Now()
 	out := map[string]map[int][2]int64{}
-	for _, p := range b.Prices {
+	for _, p := range prices {
 		if p.City == "" {
 			continue
 		}
@@ -173,6 +171,9 @@ type Craft struct {
 	Public     bool           `json:"public"` // uses at least one public price
 	Materials  []Material     `json:"materials"`
 	Qualities  []CraftQuality `json:"qualities"` // what it sells for at each quality, if more than Normal seen
+	// learned from history:
+	Reliability float64 `json:"reliability"`
+	RelOK       bool    `json:"relOk"`
 }
 
 const setupFee = 0.025

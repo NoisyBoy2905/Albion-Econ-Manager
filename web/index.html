@@ -203,6 +203,7 @@ tr.chart-row td { padding: 0 14px 16px; }
   <div class="status" aria-live="polite">
     <span><i class="dot" id="dot"></i><b id="where">Starting</b></span>
     <span id="traffic"></span>
+    <span id="learning"></span>
   </div>
 </header>
 
@@ -255,6 +256,10 @@ tr.chart-row td { padding: 0 14px 16px; }
             <th class="num"><button data-sort="profit">Each</button></th>
             <th class="num"><button data-sort="qty">How many</button></th>
             <th class="num"><button data-sort="total" aria-sort="descending">Total profit</button></th>
+            <th class="num"><button data-sort="usual">Best usual</button></th>
+            <th class="num"><button data-sort="reliability">Reliability</button></th>
+            <th class="num"><button data-sort="vsNormal">vs normal</button></th>
+            <th><button data-sort="swing">Swing</button></th>
             <th class="num"><button data-sort="ageMin">Age</button></th>
           </tr></thead>
           <tbody id="rows"></tbody>
@@ -307,6 +312,7 @@ tr.chart-row td { padding: 0 14px 16px; }
             <th class="num"><button data-csort="instant">Sell now</button></th>
             <th class="num"><button data-csort="list">List for</button></th>
             <th class="num"><button data-csort="best" aria-sort="descending">Best profit</button></th>
+            <th class="num"><button data-csort="reliability">Reliability</button></th>
             <th class="num"><button data-csort="percent">Return</button></th>
             <th class="num"><button data-csort="ageMin">Age</button></th>
           </tr></thead>
@@ -334,6 +340,10 @@ tr.chart-row td { padding: 0 14px 16px; }
       <dt>Orders read</dt><dd id="t-orders">0</dd>
       <dt>Prices saved</dt><dd id="t-prices">0</dd>
     </dl>
+    <div class="rec" id="hidden-box" hidden>
+      <p><span id="hidden-count"></span> <button type="button" class="btn" id="hidden-toggle" style="padding:2px 8px;font-size:13px">Show them</button></p>
+      <ul class="feed" id="hidden-list" hidden></ul>
+    </div>
     <h3>Public prices</h3>
     <div class="rec" id="pub">
       <p>Download prices for every item in every city from the Albion Data Project, a free site built from other players' scans. Takes about 3 minutes. Public prices can be a few hours old and don't say how many are on offer, so they're marked <span class="tag">public</span>. Your own prices win when they're newer.</p>
@@ -389,9 +399,10 @@ const ago = m => m < 1 ? "now" : m < 60 ? m + "m" : Math.floor(m / 60) + "h";
 const flipKey = f => `${f.id}|${f.quality}|${f.from}|${f.to}`;
 
 let tab = "flips", latest = null;
+let showHidden = false;      // whether the troll/junk list is expanded
 const chartOpen = new Set(); // price-row keys with an open chart
 const chartData = {};        // key -> history points, fetched on click
-let sortKey = "total", sortDir = -1;
+let sortKey = "total", sortDir = -1, sortTouched = false;
 let csortKey = "best", csortDir = -1;
 let open = new Set();          // crafting rows showing their materials
 let seen = null;               // flips that were already there, so alerts only fire for new ones
@@ -438,7 +449,7 @@ async function refresh() {
     $("traffic").textContent = "Start albion-sniffer.exe again";
     return;
   }
-  ["flips", "crafts", "trips", "events", "all"].forEach(k => data[k] = data[k] || []);
+  ["flips", "crafts", "trips", "events", "all", "hidden"].forEach(k => data[k] = data[k] || []);
   data.recording = data.recording || {};
   data.public = data.public || {};
   latest = data;
@@ -519,11 +530,17 @@ function render() {
     return `<li class="${esc(e.kind)}"><time>${t}</time><span>${esc(e.text)}</span></li>`;
   }).join("") || `<li><time></time><span>Nothing yet.</span></li>`;
 
+  // Once there's a few days of history, sort by profit you can usually count
+  // on (profit x reliability) by default, until you pick a column yourself.
+  $("learning").textContent = s.learningDays > 0 ? `Learning from ${s.learningDays} ${s.learningDays === 1 ? "day" : "days"} of history` : "";
+  if (!sortTouched && s.learningDays >= 3) { sortKey = "usual"; sortDir = -1; }
+
   const q = $("search").value.trim().toLowerCase();
+  const usual = f => f.total * (f.relOk ? f.reliability : 0.000001);
   const flips = s.flips
     .filter(f => f.total >= (Number($("min").value) || 0))
     .filter(f => !q || `${f.name} ${f.id} ${f.from} ${f.to}`.toLowerCase().includes(q))
-    .sort(by(sortKey, sortDir));
+    .sort(sortKey === "usual" ? (a, b) => (usual(a) - usual(b)) * sortDir : by(sortKey, sortDir));
   const crafts = filteredCrafts(q);
 
   $("n-flips").textContent = s.flips.length || "";
@@ -553,6 +570,23 @@ function render() {
   }
   renderRecording(s.recording);
   renderPublic(s.public);
+  renderHidden(s);
+}
+
+// Troll/junk prices the filter removed, behind a "Show them" toggle.
+function renderHidden(s) {
+  const n = s.hiddenCount || 0;
+  $("hidden-box").hidden = n === 0;
+  if (n === 0) return;
+  $("hidden-count").textContent = `Hid ${fmt(n)} troll ${n === 1 ? "price" : "prices"}`;
+  $("hidden-toggle").textContent = showHidden ? "Hide" : "Show them";
+  const list = $("hidden-list");
+  list.hidden = !showHidden;
+  if (!showHidden) return;
+  const shown = s.hidden.length < n ? ` (first ${fmt(s.hidden.length)})` : "";
+  list.innerHTML = s.hidden.map(h =>
+    `<li class="warn"><time>${h.side}</time><span>${esc(h.name)} in ${esc(h.city)}: ${fmt(h.price)} — ${esc(h.reason)}</span></li>`
+  ).join("") + (shown ? `<li><time></time><span>${shown}</span></li>` : "");
 }
 
 const by = (key, dir) => (a, b) => {
@@ -587,7 +621,7 @@ function renderPrices(id, rows, q) {
       <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="id">${QUALITY[p.quality] || "Quality " + p.quality}, ${esc(p.id)}</span></td>
       <td>${esc(p.city)}</td>
       <td class="num">${cell(p.sell, p.sellAmount, p.sellPublic)}</td>
-      <td class="num">${cell(p.buy, p.buyAmount, p.buyPublic)}</td>
+      <td class="num">${cell(p.buy, p.buyAmount, p.buyPublic)}${p.check ? '<span class="sub"><span class="tag">check this</span></span>' : ""}</td>
       <td class="num ${p.ageMin >= 60 ? "stale" : ""}">${ago(p.ageMin)}</td>
     </tr>`;
     const chart = chartable && chartOpen.has(k)
@@ -604,13 +638,25 @@ function renderFlips(s, flips) {
       <td>${esc(f.from)}</td>
       <td>${esc(f.to)}</td>
       <td class="num">${fmt(f.buy)}</td>
-      <td class="num">${fmt(f.sell)}<span class="sub">${f.mode === "list" ? "list here" : "sell now"}</span></td>
+      <td class="num">${fmt(f.sell)}<span class="sub">${f.check ? '<span class="tag">check this</span>' : f.mode === "list" ? "list here" : "sell now"}</span></td>
       <td class="num">+${fmt(f.profit)}<span class="sub">${f.percent.toFixed(0)}%</span></td>
       <td class="num">${f.public ? "?" : (f.est ? "≈" : "") + fmt(f.qty)}</td>
       <td class="num profit">${f.est ? "≈" : "+"}${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : f.est ? '<span class="sub">est., up to what\'s listed</span>' : ""}</td>
+      <td class="num profit">${f.relOk ? "+" + fmt(Math.round(f.total * f.reliability)) : "–"}</td>
+      <td class="num">${f.relOk ? Math.round(f.reliability * 100) + "%<span class=\"sub\">of the time</span>" : "–"}</td>
+      <td class="num">${vsNormalText(f)}</td>
+      <td>${f.swingOk ? esc(f.swingLabel) + `<span class="sub">${f.swing.toFixed(0)}%</span>` : "–"}</td>
       <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}<span class="sub">${Math.round(f.confidence * 100)}% sure${f.public ? ' · <span class="tag">public</span>' : ""}</span></td>
     </tr>`).join("")
-    : `<tr><td colspan="9" class="empty">${s.flips.length ? "No flips match these filters." : "No flips yet. They appear once you've checked the same items in two places."}</td></tr>`;
+    : `<tr><td colspan="13" class="empty">${s.flips.length ? "No flips match these filters." : "No flips yet. They appear once you've checked the same items in two places."}</td></tr>`;
+}
+
+// "18% below" / "6% above" the normal price, or "–" without enough history.
+function vsNormalText(f) {
+  if (!f.vsNormalOk) return "–";
+  const v = Math.round(Math.abs(f.vsNormal));
+  if (v === 0) return "at normal";
+  return v + "% " + (f.vsNormal < 0 ? "below" : "above");
 }
 
 function money(v, ok) { return ok ? fmt(v) : "–"; }
@@ -624,14 +670,15 @@ function renderCrafts(s, crafts) {
       <td class="num">${money(c.instant, c.instant)}<span class="sub">${esc(c.instantAt || "")}</span></td>
       <td class="num">${money(c.list, c.list)}<span class="sub">${esc(c.listAt || "")}</span></td>
       <td class="num ${c.best > 0 ? "profit" : "loss"}">${c.best > 0 ? "+" : ""}${fmt(c.best)}<span class="sub">${c.best === c.profit && c.instant ? "selling now" : "listing"}</span></td>
+      <td class="num">${c.relOk ? Math.round(c.reliability * 100) + "%<span class=\"sub\">of the time</span>" : "–"}</td>
       <td class="num">${c.percent.toFixed(0)}%</td>
       <td class="num ${c.ageMin >= 60 ? "stale" : ""}">${ago(c.ageMin)}${c.public ? '<span class="sub"><span class="tag">public</span></span>' : ""}</td>
     </tr>`;
-    const mats = isOpen ? `<tr class="mats"><td colspan="7"><ul>${c.materials.map(m =>
+    const mats = isOpen ? `<tr class="mats"><td colspan="8"><ul>${c.materials.map(m =>
       `<li><b>${m.count} × ${esc(m.name)}</b> ${m.crafted ? `craft for ${fmt(m.price)} each <span class="tag">cheaper to craft</span>` : `at ${fmt(m.price)} in ${esc(m.city)}`}</li>`).join("")}${c.fee ? `<li><b>Station fee</b> ${fmt(c.fee)} per item</li>` : ""}${c.qualities ? `<li><b>Sells at</b> ${c.qualities.map(q => `${QUALITY[q.quality] || "Q" + q.quality} ${fmt(q.list || q.instant)}`).join(" · ")} <span class="sub" style="display:inline">(profit shown is for Normal)</span></li>` : ""}</ul></td></tr>` : "";
     return row + mats;
   }).join("")
-    : `<tr><td colspan="7" class="empty">${s.crafts.length ? "Nothing matches these filters." : "No crafts yet. Browse the materials (like planks and cloth) and the finished items, and they'll show up here."}</td></tr>`;
+    : `<tr><td colspan="8" class="empty">${s.crafts.length ? "Nothing matches these filters." : "No crafts yet. Browse the materials (like planks and cloth) and the finished items, and they'll show up here."}</td></tr>`;
 }
 
 function renderRoute(s, flips) {
@@ -752,6 +799,7 @@ function renderPublic(p) {
     : p.error ? p.error
     : p.last ? `Last downloaded at ${p.last}: ${fmt(p.prices || 0)} prices.` : "";
 }
+$("hidden-toggle").addEventListener("click", () => { showHidden = !showHidden; if (latest) renderHidden(latest); });
 $("pub-start").addEventListener("click", () => post("/api/public/fetch?region=" + encodeURIComponent($("region").value)));
 $("region").addEventListener("change", remember);
 
@@ -767,6 +815,7 @@ $("tab-prices").addEventListener("click", () => { showTab("prices"); remember();
 
 document.querySelectorAll("th button[data-sort]").forEach(b => b.addEventListener("click", () => {
   const key = b.dataset.sort;
+  sortTouched = true; // stop auto-switching to "best usual"
   sortDir = key === sortKey ? -sortDir : (["name", "from", "to"].includes(key) ? 1 : -1);
   sortKey = key;
   document.querySelectorAll("th button[data-sort]").forEach(x => x.removeAttribute("aria-sort"));
@@ -828,8 +877,9 @@ $("hist-export").addEventListener("click", async () => {
 
 // chartSVG draws cheapest-sell (muted) and best-buy (gold) prices over time
 // as an inline SVG, no chart library.
-function chartSVG(points, p) {
-  points = points || [];
+function chartSVG(data, p) {
+  const points = (data && data.points) || [];
+  const band = data && data.band && data.band.ok ? data.band : null;
   const sell = points.filter(d => d.side === "sell").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
   const buy = points.filter(d => d.side === "buy").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
   if (!sell.length && !buy.length) {
@@ -839,6 +889,7 @@ function chartSVG(points, p) {
   const W = 640, H = 160, padX = 48, padY = 16;
   let tMin = Math.min(...all.map(d => d.t)), tMax = Math.max(...all.map(d => d.t));
   let vMin = Math.min(...all.map(d => d.v)), vMax = Math.max(...all.map(d => d.v));
+  if (band) { vMin = Math.min(vMin, band.low); vMax = Math.max(vMax, band.high); }
   if (tMax === tMin) { tMax = tMin + 1; }
   if (vMax === vMin) { vMax = vMin + 1; }
   const x = t => padX + (t - tMin) / (tMax - tMin) * (W - padX - 8);
@@ -857,8 +908,11 @@ function chartSVG(points, p) {
     <div class="chart-legend">
       <span><i style="background:${muted}"></i>Cheapest to buy (sell orders)</span>
       <span><i style="background:${gold}"></i>Best to sell (buy orders)</span>
+      ${band ? `<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>` : ""}
     </div>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Price over time">
+      ${band ? `<rect x="${padX}" y="${y(band.high).toFixed(1)}" width="${(W - 8 - padX).toFixed(1)}" height="${Math.max(1, y(band.low) - y(band.high)).toFixed(1)}" fill="var(--gold)" opacity="0.08"/>
+      <line x1="${padX}" y1="${y(band.normal).toFixed(1)}" x2="${W - 8}" y2="${y(band.normal).toFixed(1)}" stroke="var(--gold-dim)" stroke-dasharray="4 4"/>` : ""}
       <line x1="${padX}" y1="${padY}" x2="${padX}" y2="${H - padY}" stroke="${line2}"/>
       <line x1="${padX}" y1="${H - padY}" x2="${W - 8}" y2="${H - padY}" stroke="${line2}"/>
       ${yLabel(vMax)}${yLabel(vMin)}
