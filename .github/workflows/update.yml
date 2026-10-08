@@ -27,14 +27,24 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - name: Check out the code (main)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Check out the data branch
-        uses: actions/checkout@v4
-        continue-on-error: true # the branch doesn't exist on the very first run
-        with:
-          ref: data
-          path: data
+      - name: Restore the data branch (skips cleanly if it doesn't exist yet)
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data
+          repo="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads "$repo" data >/dev/null 2>&1; then
+            tmp=$(mktemp -d)
+            git clone --depth=1 --branch data --single-branch "$repo" "$tmp"
+            rm -rf "$tmp/.git"
+            cp -a "$tmp/." data/
+            rm -rf "$tmp"
+            echo "Restored the data branch."
+          else
+            echo "No data branch yet (first run) - starting fresh."
+          fi
 
       - name: Prepare the data folder
         run: |
@@ -43,7 +53,7 @@ jobs:
           find data -name '*.gz' -exec gunzip -f {} + 2>/dev/null || true
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -71,10 +81,10 @@ jobs:
           git push -f origin data
 
       - name: Upload the website
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
