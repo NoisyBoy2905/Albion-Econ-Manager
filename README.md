@@ -155,6 +155,10 @@ A GitHub Actions job can run the public-price side 24/7 for free, so there's a w
 
 **Public vs private:** GitHub Pages is free for **public** repos on any plan. On a **private** repo, Pages needs a paid plan (GitHub Pro or above); if you're on the free plan, either make the repo public or run cloud mode on your own host and serve the `site/` folder yourself. The site only ever shows public Albion Data Project prices, nothing personal.
 
+### Using the cloud history on your PC
+
+The cloud keeps accumulating price history on the repo's `data` branch. To pull it onto your PC so the desktop sniffer's learning features (reliability, normal price, swing) have more to work with, run **`sync-cloud-history.cmd`** (double-click it) from the sniffer's folder. It copies any days you don't already have into `history/`, decompresses the raw files, and never overwrites your own scans. It's safe to re-run whenever you want the latest days. It doesn't touch `prices.json`; to start the app from the full public price book instead, copy the `data` branch's `prices.json` over your own.
+
 ## Recording game traffic
 
 The **Record game traffic** button saves 2 minutes of raw game packets to a `.albrec` file in the sniffer's folder. It's for finding new things the sniffer could read, like your carry weight. Write down a number you can see in game (like your inventory weight), record, and then search the recording for that number.

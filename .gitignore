@@ -13,3 +13,6 @@ demo-history/
 history-data/
 data/
 site/data/
+
+# local backups
+*.bak
