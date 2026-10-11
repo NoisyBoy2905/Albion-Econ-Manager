@@ -3,203 +3,167 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Albion Market Sniffer</title>
+<title>Albion Econ Manager</title>
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #1b2027;
-  --panel: #222932;
-  --line: #333c48;
-  --text: #d9dee5;
-  --muted: #8b95a3;
-  --gold: #e3b341;
-  --gold-dim: #8a7034;
-  --warn: #d45b6a;
-  --ok: #7fb58a;
-  --serif: "Alegreya", Georgia, serif;
-  --sans: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+  --bg: #1b2027; --panel: #222932; --line: #333c48; --rowline: #262e38;
+  --text: #d9dee5; --muted: #8b95a3; --gold: #e3b341; --gold-dim: #8a7034;
+  --warn: #d45b6a; --ok: #7fb58a;
+  --serif: "Alegreya", Georgia, serif; --sans: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font: 16px/1.45 var(--sans); }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.tag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; vertical-align: 1px; }
 
-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 14px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
-}
-header h1 { font: 700 22px/1.2 var(--serif); margin: 0; letter-spacing: .01em; }
-.status { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 15px; flex-wrap: wrap; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font: 700 24px/1.2 var(--serif); margin: 0; }
+.status { display: flex; align-items: center; gap: 20px; color: var(--muted); font-size: 15px; flex-wrap: wrap; }
 .status b { color: var(--text); font-weight: 500; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 7px; }
 .dot.live { background: var(--ok); box-shadow: 0 0 0 4px rgba(127,181,138,.18); }
 .dot.off { background: var(--warn); }
 
-.warning {
-  margin: 16px 28px 0; padding: 12px 16px; border-left: 3px solid var(--warn);
-  background: rgba(212,91,106,.08); color: #f0c6cc;
-}
+.warning { margin: 16px 28px 0; padding: 12px 16px; border-left: 3px solid var(--warn); background: rgba(212,91,106,.08); color: #f0c6cc; }
 .warning[hidden] { display: none; }
 
-/* The trade route: the one big thing on the page */
-.route { padding: 30px 28px 34px; border-bottom: 1px solid var(--line); }
-.route .caption { color: var(--muted); font-size: 15px; margin: 0 0 6px; }
-.route h2 { font: 700 34px/1.15 var(--serif); margin: 0 0 22px; }
-.route h2 small { font: 500 17px var(--sans); color: var(--muted); margin-left: 10px; }
-.path { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 22px; max-width: 980px; }
-.stop .city { font: 700 22px/1.2 var(--serif); }
-.stop .price { font-size: 17px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.stop.end { text-align: right; }
-.trail { position: relative; height: 40px; }
-.trail::before {
-  content: ""; position: absolute; left: 0; right: 14px; top: 50%;
-  border-top: 2px dashed var(--gold-dim);
-}
-.trail::after {
-  content: ""; position: absolute; right: 0; top: calc(50% - 7px);
-  border: 7px solid transparent; border-left: 12px solid var(--gold-dim); border-right: 0;
-}
-.trail .gain {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  background: var(--bg); padding: 0 14px; white-space: nowrap;
-  font: 600 26px var(--sans); color: var(--gold); font-variant-numeric: tabular-nums;
-}
-.trail .gain span { font-size: 16px; color: var(--muted); font-weight: 500; margin-left: 6px; }
-
-/* Getting started, shown before there are any flips */
+/* Hero: the single best opportunity */
+.route { padding: 22px 28px 24px; border-bottom: 1px solid var(--line); }
+.route .caption { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+.route h2 { font: 700 30px/1.15 var(--serif); margin: 0 0 16px; }
+.route h2 small { font: 500 16px var(--sans); color: var(--muted); margin-left: 10px; }
+.path { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 18px; max-width: 760px; }
+.path .arrow { color: var(--gold-dim); font-size: 22px; }
+.stop .city { font: 700 20px/1.2 var(--serif); }
+.stop .price { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gain { text-align: center; }
+.gain b { font: 600 28px var(--sans); color: var(--gold); font-variant-numeric: tabular-nums; }
+.gain span { display: block; font-size: 13px; color: var(--muted); }
 .steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; max-width: 640px; }
 .steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; color: var(--muted); }
-.steps li .n {
-  width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line);
-  display: grid; place-items: center; font-size: 13px;
-}
+.steps li .n { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 13px; }
 .steps li.done { color: var(--text); }
 .steps li.done .n { background: var(--gold); border-color: var(--gold); color: var(--bg); font-weight: 600; }
 
-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
-.flips { padding: 20px 28px 40px; border-right: 1px solid var(--line); min-width: 0; }
-.tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
-.tools input[type=search], .tools select, .tools input[type=number] {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
-}
-.tools input[type=search] { flex: 1 1 220px; min-width: 0; }
-.tools input[type=number] { width: 120px; }
-.tools label { color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 15px; }
-.tools .count { margin-left: auto; color: var(--muted); font-size: 15px; }
+/* Global controls bar */
+.controls { display: flex; gap: 12px; align-items: center; padding: 14px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.field { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; }
+.field label { color: var(--muted); font-size: 14px; }
+.field input { background: none; border: 0; outline: none; color: var(--text); width: 120px; }
+.field.grow { flex: 1 1 240px; }
+.field.grow input { width: 100%; }
+.field.budget { border-color: var(--gold-dim); }
+.field.budget label, .field.budget input { color: var(--gold); }
+.toggle { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; color: var(--text); font-size: 15px; cursor: pointer; }
+.btn { background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--gold); }
+.btn:disabled { opacity: .5; cursor: default; }
+#advanced { display: flex; gap: 12px; align-items: center; padding: 12px 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; background: rgba(0,0,0,.12); }
+#advanced label { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+#advanced input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 90px; }
+#advanced select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; }
+.content { padding: 0 0 36px; border-right: 1px solid var(--line); min-width: 0; }
+.tabs { display: flex; gap: 4px; padding: 0 28px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { background: none; border: 0; padding: 12px 10px; cursor: pointer; color: var(--muted); font: 700 18px var(--serif); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
+.tabs button span { font: 500 14px var(--sans); color: var(--muted); margin-left: 6px; }
+.panel { padding: 8px 28px 0; }
+.toolrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0 6px; }
+.toolrow label { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.toolrow select, .toolrow input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th {
-  text-align: left; font-weight: 500; color: var(--muted); font-size: 14px;
-  padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
-}
-th button { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
-th button[aria-sort] { color: var(--text); }
-th.num, td.num { text-align: right; }
-td { padding: 9px 9px; border-bottom: 1px solid #262e38; white-space: nowrap; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.num { text-align: right; }
+td { padding: 11px 10px; border-bottom: 1px solid var(--rowline); white-space: nowrap; vertical-align: middle; }
 tbody tr:hover td { background: var(--panel); }
 td.item { font-family: var(--serif); font-size: 17px; }
-td.item .id { display: block; font: 13px var(--sans); color: var(--muted); }
+td.item .sub { font-family: var(--sans); }
 td.profit { color: var(--gold); font-weight: 600; }
-td.stale { color: var(--warn); }
-.tier { color: var(--muted); }
-.empty { color: var(--muted); padding: 30px 10px; }
-
-aside { padding: 20px 22px 40px; }
-aside h3 { font: 700 18px var(--serif); margin: 0 0 12px; }
-.feed { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-size: 15px; }
-.feed li { display: grid; grid-template-columns: 46px 1fr; gap: 8px; color: var(--muted); }
-.feed time { font-variant-numeric: tabular-nums; }
-.feed li.scan span { color: var(--text); }
-.feed li.warn span { color: #f0c6cc; }
-.totals { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 0 24px; color: var(--muted); font-size: 15px; }
-.totals dd { margin: 0; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
-
-
-/* Tabs: the shared filters sit above, each tab has its own table */
-.tabs { display: flex; gap: 4px; margin: 0 0 18px; border-bottom: 1px solid var(--line); }
-.tabs button {
-  background: none; border: 0; padding: 8px 14px 10px; cursor: pointer; color: var(--muted);
-  font: 700 18px var(--serif); border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
-.tabs button span { font: 500 14px var(--sans); color: var(--muted); margin-left: 6px; }
-[hidden] { display: none !important; }
 td.loss { color: var(--warn); }
-td .sub { display: block; font-size: 13px; color: var(--muted); }
+td.stale { color: var(--warn); }
+.tier { color: var(--muted); font-size: 14px; }
+.empty { color: var(--muted); padding: 30px 10px; }
+.bar { width: 86px; height: 4px; border-radius: 2px; background: var(--line); margin: 3px 0 0 auto; overflow: hidden; }
+.bar > i { display: block; height: 4px; background: var(--gold); border-radius: 2px; }
+.paging { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 14px; padding: 14px 0 2px; }
+.paging .pbtns { display: flex; gap: 8px; }
+.note { color: var(--muted); font-size: 13px; margin: 14px 0 0; max-width: 72ch; }
+
 tr.craft { cursor: pointer; }
 tr.mats td { background: var(--panel); white-space: normal; padding: 4px 10px 14px 28px; }
 .mats ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 15px; color: var(--muted); }
 .mats li b { color: var(--text); font-weight: 500; }
-.alert-set { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
-.alert-set input[type=number] { width: 110px; }
-.note { color: var(--muted); font-size: 14px; margin: 14px 0 0; max-width: 70ch; }
-.subhead { font: 700 18px var(--serif); margin: 28px 0 8px; }
+.trip { border-top: 1px solid var(--line); padding: 16px 0 8px; }
+.trip:first-child { border-top: 0; }
+.trip h4 { font: 700 20px var(--serif); margin: 0 0 4px; }
+.trip .tsum { color: var(--muted); margin: 0 0 10px; font-size: 15px; }
+.trip .tsum b { color: var(--gold); font-weight: 600; }
+
+aside { padding: 20px 22px 40px; }
+aside h3 { font: 700 18px var(--serif); margin: 0 0 12px; }
+.totals { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; margin: 0 0 20px; color: var(--muted); font-size: 15px; }
+.totals dd { margin: 0; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.acc { border-top: 1px solid var(--rowline); }
+.acc > summary { list-style: none; cursor: pointer; padding: 12px 0; font: 700 16px var(--serif); display: flex; justify-content: space-between; align-items: center; }
+.acc > summary::-webkit-details-marker { display: none; }
+.acc > summary::after { content: "▾"; color: var(--muted); font-size: 13px; }
+.acc[open] > summary::after { content: "▴"; }
+.acc .body { padding: 0 0 14px; color: var(--muted); font-size: 14px; }
+.acc .body p { margin: 0 0 10px; }
+.acc .body b { color: var(--text); font-weight: 500; word-break: break-all; }
+.acc .body ol { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 3px; }
+#region { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.feed { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; font-size: 14px; }
+.feed li { display: grid; grid-template-columns: 44px 1fr; gap: 8px; color: var(--muted); }
+.feed li.scan span { color: var(--text); }
+.feed li.warn span { color: #f0c6cc; }
+.recdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); margin-right: 8px; }
+.pubstatus { margin-top: 10px; }
+.pubstatus:empty { display: none; }
+
+tr.price.clickable { cursor: pointer; }
+tr.chart-row td { padding: 0 10px 16px; }
+.chart svg { width: 100%; height: 160px; display: block; }
+.chart-legend { display: flex; gap: 18px; color: var(--muted); font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+footer { padding: 16px 28px 28px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
 @media (prefers-reduced-motion: no-preference) {
   tr.fresh td { animation: fresh 2.4s ease-out; }
   @keyframes fresh { from { background: rgba(227,179,65,.16); } to { background: transparent; } }
-}
-
-
-.trip { border-top: 1px solid var(--line); padding: 18px 0 10px; }
-.trip:first-child { border-top: 0; padding-top: 4px; }
-.trip h4 { font: 700 20px var(--serif); margin: 0 0 4px; }
-.trip .sum { color: var(--muted); margin: 0 0 10px; font-size: 15px; }
-.trip .sum b { color: var(--gold); font-weight: 600; }
-.tools input#carry, .tools input#budget, .tools input#fee { width: 120px; }
-.tools input#haul, .tools input#risk { width: 90px; }
-
-
-.rec { margin: 0 0 26px; color: var(--muted); font-size: 15px; }
-.rec p { margin: 0 0 10px; }
-.rec b { color: var(--text); font-weight: 500; word-break: break-all; }
-.rec ol { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 3px; }
-.btn {
-  background: var(--panel); border: 1px solid var(--gold-dim); color: var(--text);
-  border-radius: 6px; padding: 7px 14px; cursor: pointer;
-}
-.btn:hover { border-color: var(--gold); }
-.tag {
-  display: inline-block; font-size: 12px; line-height: 1; padding: 3px 6px; border-radius: 4px;
-  border: 1px solid var(--line); color: var(--muted); vertical-align: 1px; margin-left: 4px;
-}
-.pubstatus { margin-top: 10px; }
-.pubstatus:empty { display: none; }
-#region { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; margin-left: 6px; }
-.recdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); margin-right: 8px; }
-@media (prefers-reduced-motion: no-preference) {
   .recdot { animation: blink 1.2s ease-in-out infinite; }
   @keyframes blink { 50% { opacity: .25; } }
 }
-
-@media (max-width: 860px) {
-  header, .route, .flips, aside, footer { padding-left: 16px; padding-right: 16px; }
+[hidden] { display: none !important; }
+@media (max-width: 900px) {
+  header, .route, .controls, #advanced, .tabs, .panel, aside, footer { padding-left: 16px; padding-right: 16px; }
   .warning { margin-left: 16px; margin-right: 16px; }
   main { grid-template-columns: 1fr; }
-  .flips { border-right: 0; border-bottom: 1px solid var(--line); }
-  .route h2 { font-size: 26px; }
+  .content { border-right: 0; border-bottom: 1px solid var(--line); }
+  .route h2 { font-size: 24px; }
   .path { grid-template-columns: 1fr; gap: 8px; }
-  .stop.end { text-align: left; }
-  .trail { height: 44px; }
-  .trail .gain { left: 0; transform: translateY(-50%); padding-left: 0; }
+  .path .arrow { display: none; }
+  .gain { text-align: left; }
 }
-tr.price.clickable { cursor: pointer; }
-tr.price.clickable:hover td { background: var(--panel); }
-tr.chart-row td { padding: 0 14px 16px; }
-.chart { padding: 8px 0 2px; }
-.chart svg { width: 100%; height: 160px; display: block; }
-.chart-legend { display: flex; gap: 18px; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
-.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
-.chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Albion Market Sniffer</h1>
+  <h1>Albion Econ Manager</h1>
   <div class="status" aria-live="polite">
     <span><i class="dot" id="dot"></i><b id="where">Starting</b></span>
     <span id="traffic"></span>
@@ -208,11 +172,33 @@ tr.chart-row td { padding: 0 14px 16px; }
 </header>
 
 <div class="warning" id="warning" hidden></div>
-
 <section class="route" id="route" aria-live="polite"></section>
 
+<div class="controls">
+  <div class="field grow"><input type="search" id="search" placeholder="Search items or cities" aria-label="Search items or cities"></div>
+  <div class="field budget"><label for="budget">Silver I have</label><input type="number" id="budget" min="0" step="100000" value="0" aria-label="How much silver you have to spend"></div>
+  <label class="toggle"><input type="checkbox" id="premium" checked> Premium (4% tax)</label>
+  <div class="field"><label for="min">Min profit</label><input type="number" id="min" min="0" step="1000" value="0" aria-label="Minimum total profit"></div>
+  <button type="button" class="btn" id="adv-toggle" aria-expanded="false">Advanced ▾</button>
+</div>
+<div id="advanced" hidden>
+  <label>Prices from the last
+    <select id="age" aria-label="Maximum price age">
+      <option value="30">30 min</option><option value="60">1 hour</option>
+      <option value="180">3 hours</option><option value="360" selected>6 hours</option>
+      <option value="1440">24 hours</option>
+    </select>
+  </label>
+  <label>Haul cost /kg <input type="number" id="haul" min="0" step="5" value="0" aria-label="Haul cost in silver per kg"></label>
+  <label>Black-zone risk % <input type="number" id="risk" min="0" max="100" step="5" value="0" aria-label="Expected loss percent on dangerous routes"></label>
+  <label><input type="checkbox" id="fresh"> Prefer fresh prices</label>
+  <label><input type="checkbox" id="alerts"> Alert over
+    <input type="number" id="alert-at" min="0" step="5000" value="50000" aria-label="Alert threshold" style="width:110px">
+  </label>
+</div>
+
 <main>
-  <section class="flips">
+  <section class="content">
     <div class="tabs" role="tablist">
       <button role="tab" id="tab-flips" aria-selected="true" aria-controls="panel-flips">Flips<span id="n-flips"></span></button>
       <button role="tab" id="tab-crafts" aria-selected="false" aria-controls="panel-crafts">Crafting<span id="n-crafts"></span></button>
@@ -220,171 +206,134 @@ tr.chart-row td { padding: 0 14px 16px; }
       <button role="tab" id="tab-prices" aria-selected="false" aria-controls="panel-prices">All prices<span id="n-prices"></span></button>
     </div>
 
-    <div class="tools">
-      <input type="search" id="search" placeholder="Search items or cities" aria-label="Search items or cities">
-      <label><input type="checkbox" id="premium" checked> Premium (4% tax)</label>
-      <label>Prices from the last
-        <select id="age" aria-label="Maximum price age">
-          <option value="30">30 min</option>
-          <option value="60">1 hour</option>
-          <option value="180">3 hours</option>
-          <option value="360" selected>6 hours</option>
-          <option value="1440">24 hours</option>
-        </select>
-      </label>
-    </div>
-
-    <div id="panel-flips" role="tabpanel" aria-labelledby="tab-flips">
-      <div class="tools">
-        <label>Min total profit <input type="number" id="min" min="0" step="1000" value="0" aria-label="Minimum total profit"></label>
-        <label>Haul cost /kg <input type="number" id="haul" min="0" step="5" value="0" aria-label="Haul cost in silver per kg"></label>
-        <label>Black-zone risk % <input type="number" id="risk" min="0" max="100" step="5" value="0" aria-label="Expected loss percent on Caerleon and Black Market routes"></label>
-        <label><input type="checkbox" id="fresh"> Prefer fresh prices</label>
-        <span class="alert-set">
-          <label><input type="checkbox" id="alerts"> Alert me when a new flip makes over</label>
-          <input type="number" id="alert-at" min="0" step="5000" value="50000" aria-label="Alert threshold">
-        </span>
+    <div id="panel-flips" class="panel" role="tabpanel" aria-labelledby="tab-flips">
+      <div class="toolrow">
+        <label>Sort by
+          <select id="flip-sort" aria-label="Sort flips by">
+            <option value="usual">Best usual profit</option>
+            <option value="total">Biggest profit now</option>
+            <option value="reliability">Most reliable</option>
+            <option value="percent">Best %</option>
+            <option value="ageMin">Newest prices</option>
+          </select>
+        </label>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th><button data-sort="name">Item</button></th>
-            <th><button data-sort="from">Buy in</button></th>
-            <th><button data-sort="to">Sell in</button></th>
-            <th class="num"><button data-sort="buy">Buy for</button></th>
-            <th class="num"><button data-sort="sell">Sell for</button></th>
-            <th class="num"><button data-sort="profit">Each</button></th>
-            <th class="num"><button data-sort="qty">How many</button></th>
-            <th class="num"><button data-sort="total" aria-sort="descending">Total profit</button></th>
-            <th class="num"><button data-sort="usual">Best usual</button></th>
-            <th class="num"><button data-sort="reliability">Reliability</button></th>
-            <th class="num"><button data-sort="vsNormal">vs normal</button></th>
-            <th><button data-sort="swing">Swing</button></th>
-            <th class="num"><button data-sort="ageMin">Age</button></th>
+            <th>Item</th><th>Route</th><th class="num">Buy → Sell</th>
+            <th class="num">Profit</th><th class="num">Confidence</th><th class="num">Age</th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
-      <p class="note">How many is how many you can buy and still sell at a profit, using the orders you've seen. The market only shows the first page of orders, so there may be more.</p>
-      <div id="flips-fallback" hidden>
-        <h4 class="subhead">Everything you've seen so far</h4>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell instantly</th><th class="num">Age</th></tr></thead>
-          <tbody id="fallback-rows"></tbody>
-        </table></div>
-      </div>
+      <div class="paging" id="flip-paging"></div>
+      <p class="note">Profit is for the whole page of orders the market shows, after tax. "Best usual" is profit × how often this flip has actually been profitable. Set <b>Silver I have</b> to hide flips you can't afford.</p>
     </div>
 
-    <div id="panel-prices" role="tabpanel" aria-labelledby="tab-prices" hidden>
-      <div class="tools">
-        <button id="hist-export">Export history</button>
-        <span id="hist-status" class="note" style="margin:0"></span>
-      </div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell instantly</th><th class="num">Age</th></tr></thead>
-        <tbody id="prows"></tbody>
-      </table></div>
-      <p class="note">Every price the sniffer has seen, newest first. Cheapest to buy is the lowest sell order; best to sell instantly is the highest buy order. The number under each price is how many are on offer at it. Click a row to see its price over time. <b>Export history</b> saves everything seen to <code>history-export.csv</code>.</p>
-    </div>
-
-    <div id="panel-crafts" role="tabpanel" aria-labelledby="tab-crafts" hidden>
-      <div class="tools">
+    <div id="panel-crafts" class="panel" role="tabpanel" aria-labelledby="tab-crafts" hidden>
+      <div class="toolrow">
+        <label>Sort by
+          <select id="craft-sort" aria-label="Sort crafts by">
+            <option value="best">Biggest profit</option>
+            <option value="reliability">Most reliable</option>
+            <option value="percent">Best return</option>
+            <option value="ageMin">Newest prices</option>
+          </select>
+        </label>
         <label>Return rate
           <select id="rr" aria-label="Resource return rate">
-            <option value="0.152">Royal city, no focus (15%)</option>
-            <option value="0.248">Bonus city, no focus (25%)</option>
-            <option value="0.435">Royal city with focus (44%)</option>
-            <option value="0.479">Bonus city with focus (48%)</option>
+            <option value="0.152">Royal, no focus (15%)</option>
+            <option value="0.248">Bonus, no focus (25%)</option>
+            <option value="0.435">Royal + focus (44%)</option>
+            <option value="0.479">Bonus + focus (48%)</option>
             <option value="0">None (0%)</option>
           </select>
         </label>
-        <label>Category
-          <select id="cat" aria-label="Category"><option value="">All</option></select>
-        </label>
-        <label>Station fee <input type="number" id="fee" min="0" step="50" value="300" aria-label="Station fee in silver per 100 nutrition"></label>
+        <label>Category <select id="cat" aria-label="Category"><option value="">All</option></select></label>
+        <label>Station fee <input type="number" id="fee" min="0" step="50" value="300" aria-label="Station fee per 100 nutrition"></label>
         <label><input type="checkbox" id="profitable" checked> Only profitable</label>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th><button data-csort="name">Item</button></th>
-            <th class="num"><button data-csort="cost">Materials</button></th>
-            <th class="num"><button data-csort="instant">Sell now</button></th>
-            <th class="num"><button data-csort="list">List for</button></th>
-            <th class="num"><button data-csort="best" aria-sort="descending">Best profit</button></th>
-            <th class="num"><button data-csort="reliability">Reliability</button></th>
-            <th class="num"><button data-csort="percent">Return</button></th>
-            <th class="num"><button data-csort="ageMin">Age</button></th>
+            <th>Item</th><th class="num">Materials</th><th class="num">Sell now</th>
+            <th class="num">List for</th><th class="num">Best profit</th><th class="num">Confidence</th><th class="num">Age</th>
           </tr></thead>
           <tbody id="crows"></tbody>
         </table>
       </div>
-      <p class="note">Materials are bought at the cheapest price seen in any city, after the return rate gives some back (artefacts never come back). Sell now uses the best buy order; list for uses the cheapest sell order, minus the 2.5% listing fee. The station fee is the silver per 100 nutrition shown on the crafting station; check it in game, it changes. Click a row to see its materials.</p>
+      <div class="paging" id="craft-paging"></div>
+      <p class="note">Materials are bought at the cheapest price seen in any city, after the return rate gives some back. Click a row to see its materials. The station fee is the silver per 100 nutrition shown on the crafting station — check it in game.</p>
     </div>
 
-    <div id="panel-trips" role="tabpanel" aria-labelledby="tab-trips" hidden>
-      <div class="tools">
+    <div id="panel-trips" class="panel" role="tabpanel" aria-labelledby="tab-trips" hidden>
+      <div class="toolrow">
         <label>Carry weight (kg) <input type="number" id="carry" min="0" step="100" value="1500" aria-label="How much you can carry in kg"></label>
-        <label>Silver to spend <input type="number" id="budget" min="0" step="100000" value="1000000" aria-label="Silver to spend"></label>
+        <span class="note" style="margin:0">Uses <b>Silver I have</b> as the budget.</span>
       </div>
       <div id="trips"></div>
-      <p class="note">For each pair of cities, it fills your bags with the flips that make the most profit per kg, until you run out of weight or silver. Use the weight limit shown in your inventory with your mount and food on. Items with unknown weight count as weightless.</p>
+      <p class="note">For each pair of cities, it fills your bags with the flips that make the most profit per kg, until you run out of weight or silver. Items with unknown weight count as weightless.</p>
+    </div>
+
+    <div id="panel-prices" class="panel" role="tabpanel" aria-labelledby="tab-prices" hidden>
+      <div class="toolrow">
+        <button class="btn" id="hist-export">Export history to CSV</button>
+        <span id="hist-status" class="note" style="margin:0"></span>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell</th><th class="num">Age</th></tr></thead>
+        <tbody id="prows"></tbody>
+      </table></div>
+      <div class="paging" id="price-paging"></div>
+      <p class="note">Every current price, newest first — search above to find any item among the lot. Click a row to see its price over time, with the normal range shaded.</p>
     </div>
   </section>
 
   <aside>
     <h3>This session</h3>
     <dl class="totals">
-      <dt>Network adapters</dt><dd id="t-adapters">0</dd>
-      <dt>Game packets</dt><dd id="t-packets">0</dd>
+      <dt>Prices known</dt><dd id="t-prices">0</dd>
       <dt>Orders read</dt><dd id="t-orders">0</dd>
-      <dt>Prices saved</dt><dd id="t-prices">0</dd>
+      <dt>Game packets</dt><dd id="t-packets">0</dd>
+      <dt>Network adapters</dt><dd id="t-adapters">0</dd>
     </dl>
-    <div class="rec" id="hidden-box" hidden>
-      <p><span id="hidden-count"></span> <button type="button" class="btn" id="hidden-toggle" style="padding:2px 8px;font-size:13px">Show them</button></p>
-      <ul class="feed" id="hidden-list" hidden></ul>
-    </div>
-    <h3>Public prices</h3>
-    <div class="rec" id="pub">
-      <p>Download prices for every item in every city from the Albion Data Project, a free site built from other players' scans. Takes about 3 minutes. Public prices can be a few hours old and don't say how many are on offer, so they're marked <span class="tag">public</span>. Your own prices win when they're newer.</p>
-      <p><label>Server
-        <select id="region" aria-label="Server">
-          <option value="europe">Europe</option>
-          <option value="west">Americas</option>
-          <option value="east">Asia</option>
-        </select></label></p>
-      <button type="button" class="btn" id="pub-start">Get public prices</button>
-      <p class="pubstatus" id="pub-status"></p>
+    <div id="hidden-box" hidden style="margin:0 0 16px">
+      <span id="hidden-count" class="note" style="margin:0"></span>
+      <button type="button" class="btn" id="hidden-toggle" style="padding:2px 8px;font-size:13px;margin-left:6px">Show</button>
+      <ul class="feed" id="hidden-list" hidden style="margin-top:10px"></ul>
     </div>
 
-    <h3>Record game traffic</h3>
-    <div class="rec" id="rec">
-      <p>Saves 2 minutes of raw game traffic to a file next to the sniffer, so Claude can find new things to read, like your carry weight.</p>
-      <ol>
-        <li>Press Start recording.</li>
-        <li>Mount up and open your inventory.</li>
-        <li>Write down the weight it shows, like 450 / 1,200 kg.</li>
-        <li>Open the market and browse a few items.</li>
-      </ol>
-      <p>The file can include your character name and nearby chat. It stays on your PC unless you send it.</p>
-      <button type="button" class="btn" id="rec-start">Start recording</button>
-    </div>
-    <div class="rec" id="rec-live" hidden>
-      <p><span class="recdot"></span><b id="rec-left"></b> left, <span id="rec-packets"></span> packets saved</p>
-      <button type="button" class="btn" id="rec-stop">Stop now</button>
-    </div>
-    <div class="rec" id="rec-done" hidden>
-      <p>Saved <b id="rec-file"></b> (<span id="rec-count"></span> packets) in the sniffer's folder. Send it to Claude with the weight numbers you wrote down.</p>
-      <button type="button" class="btn" id="rec-again">Record again</button>
-    </div>
+    <details class="acc" id="pub">
+      <summary>Public prices</summary>
+      <div class="body">
+        <p>Download prices for every item in every city from the Albion Data Project (other players' scans). Takes ~3 minutes. Marked <span class="tag">public</span>; your own prices win when newer.</p>
+        <p>Server <select id="region" aria-label="Server"><option value="europe">Europe</option><option value="west">Americas</option><option value="east">Asia</option></select></p>
+        <button type="button" class="btn" id="pub-start">Get public prices</button>
+        <p class="pubstatus" id="pub-status"></p>
+      </div>
+    </details>
 
-    <h3>Activity</h3>
-    <ul class="feed" id="feed"></ul>
+    <details class="acc" id="rec">
+      <summary>Record game traffic</summary>
+      <div class="body">
+        <p>Saves 2 minutes of raw traffic to a file next to the sniffer, so Claude can find new things to read (like your carry weight).</p>
+        <ol><li>Press Start.</li><li>Mount up, open your inventory, note the weight.</li><li>Open the market and browse a few items.</li></ol>
+        <div id="rec-idle"><button type="button" class="btn" id="rec-start">Start recording</button></div>
+        <div id="rec-live" hidden><p><span class="recdot"></span><b id="rec-left"></b> left, <span id="rec-packets"></span> packets</p><button type="button" class="btn" id="rec-stop">Stop now</button></div>
+        <div id="rec-done" hidden><p>Saved <b id="rec-file"></b> (<span id="rec-count"></span> packets).</p><button type="button" class="btn" id="rec-again">Record again</button></div>
+      </div>
+    </details>
+
+    <details class="acc" id="activity" open>
+      <summary>Activity</summary>
+      <div class="body"><ul class="feed" id="feed"></ul></div>
+    </details>
   </aside>
 </main>
 
-<footer class="note" style="padding:16px 28px 28px;border-top:1px solid var(--line);max-width:none">
-  Unofficial fan-made tool, not affiliated with or endorsed by Sandbox Interactive. It only reads your own game traffic and never changes, automates, or controls the game. Item and price data belong to their owners. Use at your own risk under Albion Online's terms of service.
+<footer>
+  Unofficial fan-made tool, not affiliated with or endorsed by Sandbox Interactive. It only reads your own game traffic and never changes, automates, or controls the game. Use at your own risk under Albion Online's terms of service.
 </footer>
 
 <script>
@@ -392,23 +341,31 @@ const QUALITY = ["", "Normal", "Good", "Outstanding", "Excellent", "Masterpiece"
 const CATEGORY = {weapons: "Weapons", armors: "Armour", head: "Helmets", shoes: "Shoes", offhands: "Off-hands",
   capes: "Capes", bags: "Bags", mounts: "Mounts", consumables: "Food and potions", crafting: "Refining",
   gathering: "Gathering gear", artefacts: "Artefacts", furniture: "Furniture", other: "Other", vanity: "Vanity"};
+const PER_PAGE = 200;
 const $ = id => document.getElementById(id);
-const fmt = n => n.toLocaleString("en-GB");
+const fmt = n => (Number(n) || 0).toLocaleString("en-GB");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const ago = m => m < 1 ? "now" : m < 60 ? m + "m" : Math.floor(m / 60) + "h";
 const flipKey = f => `${f.id}|${f.quality}|${f.from}|${f.to}`;
+// Short money: 45.2M, 8.47M, 936K, or the full number below 10,000.
+function abbr(n) {
+  n = Number(n) || 0; const neg = n < 0; n = Math.abs(n); let s;
+  if (n >= 1e6) s = (n / 1e6 >= 10 ? (n / 1e6).toFixed(1) : (n / 1e6).toFixed(2)) + "M";
+  else if (n >= 1e4) s = Math.round(n / 1e3) + "K";
+  else s = Math.round(n).toLocaleString("en-GB");
+  return (neg ? "-" : "") + s;
+}
 
 let tab = "flips", latest = null;
-let showHidden = false;      // whether the troll/junk list is expanded
-const chartOpen = new Set(); // price-row keys with an open chart
-const chartData = {};        // key -> history points, fetched on click
-let sortKey = "total", sortDir = -1, sortTouched = false;
-let csortKey = "best", csortDir = -1;
-let open = new Set();          // crafting rows showing their materials
-let seen = null;               // flips that were already there, so alerts only fire for new ones
-let fresh = new Set();         // rows to highlight briefly
+let showHidden = false;
+let flipPage = 0, craftPage = 0, pricePage = 0;
+let openCrafts = new Set();   // crafting rows showing their materials
+let seen = null;              // flips already there, so alerts only fire for new ones
+let fresh = new Set();        // rows to highlight briefly
+const chartOpen = new Set();
+const chartData = {};
 
-const SETTINGS = ["region", "premium", "age", "min", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "budget", "fresh", "haul", "risk"];
+const SETTINGS = ["region", "premium", "age", "min", "budget", "alerts", "alert-at", "rr", "fee", "profitable", "carry", "fresh", "haul", "risk", "flip-sort", "craft-sort"];
 function remember() {
   try {
     const s = {tab};
@@ -420,7 +377,7 @@ function restore() {
   try {
     const s = JSON.parse(localStorage.getItem("sniffer") || "{}");
     SETTINGS.forEach(id => {
-      if (s[id] === undefined) return;
+      if (s[id] === undefined || !$(id)) return;
       if ($(id).type === "checkbox") $(id).checked = s[id]; else $(id).value = s[id];
     });
     if (s.tab) showTab(s.tab);
@@ -433,17 +390,25 @@ function showTab(name) {
     $("tab-" + t).setAttribute("aria-selected", t === name);
     $("panel-" + t).hidden = t !== name;
   });
-  if (latest) render();
+  if (name === "prices") refresh(); else if (latest) render();
 }
+
+function budgetVal() { return Number($("budget").value) || 0; }
+function searchVal() { return $("search").value.trim().toLowerCase(); }
 
 async function refresh() {
   const tax = $("premium").checked ? 0.04 : 0.08;
+  const p = new URLSearchParams({
+    tax, age: $("age").value, rr: $("rr").value, fee: Number($("fee").value) || 0,
+    carry: Number($("carry").value) || 0, budget: budgetVal(),
+    fresh: $("fresh").checked ? 1 : 0, haul: Number($("haul").value) || 0,
+    risk: (Number($("risk").value) || 0) / 100,
+    tab, q: searchVal(), pricePage,
+  });
   let data;
   try {
-    const res = await fetch(`/api/state?tax=${tax}&age=${$("age").value}&rr=${$("rr").value}&fee=${Number($("fee").value) || 0}&carry=${Number($("carry").value) || 0}&budget=${Number($("budget").value) || 0}&fresh=${$("fresh").checked ? 1 : 0}&haul=${Number($("haul").value) || 0}&risk=${(Number($("risk").value) || 0) / 100}`);
-    data = await res.json();
+    data = await (await fetch("/api/state?" + p)).json();
   } catch (e) {
-    // only a failed request means the sniffer isn't running
     $("dot").className = "dot off";
     $("where").textContent = "Sniffer closed";
     $("traffic").textContent = "Start albion-sniffer.exe again";
@@ -453,15 +418,10 @@ async function refresh() {
   data.recording = data.recording || {};
   data.public = data.public || {};
   latest = data;
-  try {
-    checkAlerts();
-    render();
-  } catch (e) {
-    console.error("Couldn't draw the window:", e);
-  }
+  try { checkAlerts(); render(); } catch (e) { console.error("draw failed:", e); }
 }
 
-// ---- alerts ----
+// ---- alerts (we have the full flip list, so this stays in the browser) ----
 let audio;
 function chime() {
   try {
@@ -480,22 +440,62 @@ function chime() {
 }
 function checkAlerts() {
   const now = new Set(latest.flips.map(flipKey));
-  if (seen === null) { seen = now; return; }  // first load: nothing is "new"
-  const limit = Number($("alert-at").value) || 0;
+  if (seen === null) { seen = now; return; }
   const added = latest.flips.filter(f => !seen.has(flipKey(f)));
   added.forEach(f => fresh.add(flipKey(f)));
   setTimeout(() => added.forEach(f => fresh.delete(flipKey(f))), 2500);
   seen = now;
   if (!$("alerts").checked) return;
-  const big = added.filter(f => f.total >= limit).sort((a, b) => b.total - a.total)[0];
+  const limit = Number($("alert-at").value) || 0;
+  const budget = budgetVal();
+  const big = added.filter(f => f.total >= limit && (!budget || f.buy <= budget)).sort((a, b) => b.total - a.total)[0];
   if (!big) return;
   chime();
-  const text = `${big.name}: buy ${big.qty} in ${big.from}, sell in ${big.to} for +${fmt(big.total)}`;
-  document.title = `+${fmt(big.total)} flip | Albion Market Sniffer`;
-  setTimeout(() => document.title = "Albion Market Sniffer", 15000);
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("New flip found", {body: text});
-  }
+  const text = `${big.name}: buy in ${big.from}, sell in ${big.to} for +${fmt(big.total)}`;
+  document.title = `+${abbr(big.total)} flip | Albion Econ Manager`;
+  setTimeout(() => document.title = "Albion Econ Manager", 15000);
+  if ("Notification" in window && Notification.permission === "granted") new Notification("New flip found", {body: text});
+}
+
+// ---- filtering & sorting (flips/crafts are filtered and paged in the browser) ----
+const usualVal = f => f.total * (f.relOk ? f.reliability : 0.000001);
+function sortedFlips() {
+  const q = searchVal(), budget = budgetVal(), min = Number($("min").value) || 0;
+  const key = $("flip-sort").value;
+  const cmp = {
+    usual: (a, b) => usualVal(b) - usualVal(a),
+    total: (a, b) => b.total - a.total,
+    reliability: (a, b) => (b.relOk ? b.reliability : -1) - (a.relOk ? a.reliability : -1),
+    percent: (a, b) => b.percent - a.percent,
+    ageMin: (a, b) => a.ageMin - b.ageMin,
+  }[key] || ((a, b) => b.total - a.total);
+  return latest.flips
+    .filter(f => f.total >= min)
+    .filter(f => !budget || f.buy <= budget)
+    .filter(f => !q || `${f.name} ${f.id} ${f.from} ${f.to}`.toLowerCase().includes(q))
+    .sort(cmp);
+}
+const bestOf = c => Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);
+function sortedCrafts() {
+  const q = searchVal(), budget = budgetVal();
+  const cats = [...new Set(latest.crafts.map(c => c.category))].filter(Boolean).sort();
+  const sel = $("cat");
+  const want = ['<option value="">All</option>', ...cats.map(c => `<option value="${esc(c)}">${esc(CATEGORY[c] || c)}</option>`)].join("");
+  if (sel.dataset.opts !== want) { const v = sel.value; sel.innerHTML = want; sel.dataset.opts = want; sel.value = v; }
+  const key = $("craft-sort").value;
+  const cmp = {
+    best: (a, b) => b.best - a.best,
+    reliability: (a, b) => (b.relOk ? b.reliability : -1) - (a.relOk ? a.reliability : -1),
+    percent: (a, b) => b.percent - a.percent,
+    ageMin: (a, b) => a.ageMin - b.ageMin,
+  }[key] || ((a, b) => b.best - a.best);
+  return latest.crafts
+    .map(c => ({...c, best: bestOf(c)}))
+    .filter(c => !$("profitable").checked || c.best > 0)
+    .filter(c => !budget || c.cost <= budget)
+    .filter(c => !sel.value || c.category === sel.value)
+    .filter(c => !q || `${c.name} ${c.id}`.toLowerCase().includes(q))
+    .sort(cmp);
 }
 
 function render() {
@@ -507,185 +507,162 @@ function render() {
     : live ? "Waiting for a zone change" : "Waiting for Albion";
   $("traffic").textContent = s.lastPacketSec < 0 ? "No game traffic yet"
     : live ? `${fmt(s.packets)} packets` : `Last packet ${ago(Math.floor(s.lastPacketSec / 60))} ago`;
+  $("learning").textContent = s.learningDays > 0 ? `Learning from ${s.learningDays} ${s.learningDays === 1 ? "day" : "days"} of history` : "";
 
   const warn = $("warning");
   if (s.encrypted > 0) {
     warn.hidden = false;
-    warn.textContent = "Albion is encrypting market data right now, so prices can't be read. This is on the game's side; it starts working again when they turn it off.";
+    warn.textContent = "Albion is encrypting market data right now, so prices can't be read. This is on the game's side; it works again when they turn it off.";
   } else if (!s.listening) {
     const w = [...s.events].reverse().find(e => e.kind === "warn");
-    warn.hidden = !w;
-    if (w) warn.textContent = w.text;
-  } else {
-    warn.hidden = true;
-  }
+    warn.hidden = !w; if (w) warn.textContent = w.text;
+  } else warn.hidden = true;
 
   $("t-adapters").textContent = s.adapters;
   $("t-packets").textContent = fmt(s.packets);
   $("t-orders").textContent = fmt(s.orders);
   $("t-prices").textContent = fmt(s.prices);
-
   $("feed").innerHTML = [...s.events].reverse().slice(0, 30).map(e => {
     const t = new Date(e.time).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"});
     return `<li class="${esc(e.kind)}"><time>${t}</time><span>${esc(e.text)}</span></li>`;
   }).join("") || `<li><time></time><span>Nothing yet.</span></li>`;
 
-  // Once there's a few days of history, sort by profit you can usually count
-  // on (profit x reliability) by default, until you pick a column yourself.
-  $("learning").textContent = s.learningDays > 0 ? `Learning from ${s.learningDays} ${s.learningDays === 1 ? "day" : "days"} of history` : "";
-  if (!sortTouched && s.learningDays >= 3) { sortKey = "usual"; sortDir = -1; }
+  const flips = sortedFlips();
+  const crafts = sortedCrafts();
+  $("n-flips").textContent = flips.length ? fmt(flips.length) : "";
+  $("n-crafts").textContent = crafts.length ? fmt(crafts.length) : "";
+  $("n-prices").textContent = s.priceTotal ? fmt(s.priceTotal) : "";
 
-  const q = $("search").value.trim().toLowerCase();
-  const usual = f => f.total * (f.relOk ? f.reliability : 0.000001);
-  const flips = s.flips
-    .filter(f => f.total >= (Number($("min").value) || 0))
-    .filter(f => !q || `${f.name} ${f.id} ${f.from} ${f.to}`.toLowerCase().includes(q))
-    .sort(sortKey === "usual" ? (a, b) => (usual(a) - usual(b)) * sortDir : by(sortKey, sortDir));
-  const crafts = filteredCrafts(q);
+  if (flipPage * PER_PAGE >= flips.length) flipPage = 0;
+  if (craftPage * PER_PAGE >= crafts.length) craftPage = 0;
 
-  $("n-flips").textContent = s.flips.length || "";
-  $("n-crafts").textContent = s.crafts.filter(c => best(c) > 0).length || "";
-
-  $("n-prices").textContent = s.all.length || "";
-  const all = s.all.filter(p => !q || `${p.name} ${p.id} ${p.city}`.toLowerCase().includes(q));
-
-  const trips = s.trips;
-  // Only the visible tab's table is in view, so only rebuild that one.
-  // Hidden tables are refreshed by showTab() the moment you switch to them.
   if (tab === "crafts") {
     renderCraftHero(s, crafts);
-    renderCrafts(s, crafts);
+    renderCrafts(crafts.slice(craftPage * PER_PAGE, craftPage * PER_PAGE + PER_PAGE), crafts.length);
+    renderPaging("craft-paging", craftPage, crafts.length, "crafts");
   } else if (tab === "trips") {
-    renderTripHero(s, trips);
-    renderTrips(s, trips);
+    renderTripHero(s, s.trips);
+    renderTrips(s.trips);
   } else if (tab === "prices") {
     renderRoute(s, flips);
-    renderPrices("prows", all, q);
+    renderPrices(s.all);
+    renderServerPaging("price-paging", s.pricePage, s.priceTotal);
   } else {
     renderRoute(s, flips);
-    renderFlips(s, flips);
-    // With no flips yet, show everything seen so the Flips tab isn't empty.
-    $("flips-fallback").hidden = s.flips.length > 0 || s.all.length === 0;
-    if (!$("flips-fallback").hidden) renderPrices("fallback-rows", all.slice(0, 300), q);
+    renderFlips(flips.slice(flipPage * PER_PAGE, flipPage * PER_PAGE + PER_PAGE), flips.length);
+    renderPaging("flip-paging", flipPage, flips.length, "flips");
   }
   renderRecording(s.recording);
   renderPublic(s.public);
   renderHidden(s);
 }
 
-// Troll/junk prices the filter removed, behind a "Show them" toggle.
-function renderHidden(s) {
-  const n = s.hiddenCount || 0;
-  $("hidden-box").hidden = n === 0;
-  if (n === 0) return;
-  $("hidden-count").textContent = `Hid ${fmt(n)} troll ${n === 1 ? "price" : "prices"}`;
-  $("hidden-toggle").textContent = showHidden ? "Hide" : "Show them";
-  const list = $("hidden-list");
-  list.hidden = !showHidden;
-  if (!showHidden) return;
-  const shown = s.hidden.length < n ? ` (first ${fmt(s.hidden.length)})` : "";
-  list.innerHTML = s.hidden.map(h =>
-    `<li class="warn"><time>${h.side}</time><span>${esc(h.name)} in ${esc(h.city)}: ${fmt(h.price)} — ${esc(h.reason)}</span></li>`
-  ).join("") + (shown ? `<li><time></time><span>${shown}</span></li>` : "");
+function renderPaging(id, page, total, kind) {
+  const el = $(id);
+  if (total <= PER_PAGE) { el.innerHTML = total ? `<span>${fmt(total)} ${total === 1 ? "result" : "results"}</span>` : ""; return; }
+  const start = page * PER_PAGE + 1, end = Math.min(total, (page + 1) * PER_PAGE);
+  el.innerHTML = `<span>Showing ${fmt(start)}–${fmt(end)} of ${fmt(total)}</span>
+    <span class="pbtns">
+      <button class="btn pbtn" data-kind="${kind}" data-dir="-1" ${page <= 0 ? "disabled" : ""}>‹ Prev</button>
+      <button class="btn pbtn" data-kind="${kind}" data-dir="1" ${end >= total ? "disabled" : ""}>Next ›</button>
+    </span>`;
+}
+function renderServerPaging(id, page, total) {
+  const el = $(id);
+  if (total <= PER_PAGE) { el.innerHTML = total ? `<span>${fmt(total)} ${total === 1 ? "price" : "prices"}</span>` : ""; return; }
+  const start = page * PER_PAGE + 1, end = Math.min(total, (page + 1) * PER_PAGE);
+  el.innerHTML = `<span>Showing ${fmt(start)}–${fmt(end)} of ${fmt(total)}</span>
+    <span class="pbtns">
+      <button class="btn pbtn" data-kind="prices" data-dir="-1" ${page <= 0 ? "disabled" : ""}>‹ Prev</button>
+      <button class="btn pbtn" data-kind="prices" data-dir="1" ${end >= total ? "disabled" : ""}>Next ›</button>
+    </span>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".pbtn"); if (!b) return;
+  const dir = Number(b.dataset.dir);
+  if (b.dataset.kind === "flips") { flipPage = Math.max(0, flipPage + dir); render(); }
+  else if (b.dataset.kind === "crafts") { craftPage = Math.max(0, craftPage + dir); render(); }
+  else if (b.dataset.kind === "prices") { pricePage = Math.max(0, pricePage + dir); refresh(); }
+});
+
+function confCell(o) {
+  if (!o.relOk) return "–";
+  const pct = Math.round(o.reliability * 100);
+  let sub = "";
+  if (o.swingOk !== undefined) {
+    const parts = [];
+    if (o.swingOk) parts.push(esc(o.swingLabel));
+    if (o.vsNormalOk) parts.push(vsNormalText(o));
+    sub = parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : "";
+  }
+  return `${pct}%<div class="bar"><i style="width:${pct}%"></i></div>${sub}`;
+}
+function vsNormalText(f) {
+  if (!f.vsNormalOk) return "";
+  const v = Math.round(Math.abs(f.vsNormal));
+  return v === 0 ? "at normal" : v + "% " + (f.vsNormal < 0 ? "below" : "above");
 }
 
-const by = (key, dir) => (a, b) => {
-  const x = a[key], y = b[key];
-  return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir;
-};
-const best = c => Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);
-
-function filteredCrafts(q) {
-  const cats = [...new Set(latest.crafts.map(c => c.category))].filter(Boolean).sort();
-  const sel = $("cat");
-  const want = ['<option value="">All</option>', ...cats.map(c => `<option value="${esc(c)}">${esc(CATEGORY[c] || c)}</option>`)].join("");
-  if (sel.dataset.opts !== want) { const v = sel.value; sel.innerHTML = want; sel.dataset.opts = want; sel.value = v; }
-  return latest.crafts
-    .map(c => ({...c, best: best(c)}))
-    .filter(c => !$("profitable").checked || c.best > 0)
-    .filter(c => !sel.value || c.category === sel.value)
-    .filter(c => !q || `${c.name} ${c.id}`.toLowerCase().includes(q))
-    .sort(by(csortKey, csortDir));
+function renderFlips(rows, total) {
+  $("rows").innerHTML = rows.length ? rows.map(f => {
+    const qtyNote = f.public ? "for 1, check in game" : f.est ? "est., up to listed" : "";
+    const usual = f.relOk ? `<span class="sub">usual ${abbr(Math.round(f.total * f.reliability))} · ${f.percent.toFixed(0)}%</span>`
+                          : `<span class="sub">${f.percent.toFixed(0)}% each</span>`;
+    return `<tr class="${fresh.has(flipKey(f)) ? "fresh" : ""}">
+      <td class="item">${esc(f.name)} <span class="tier">${esc(f.tier)}</span><span class="sub">${QUALITY[f.quality] || "Q" + f.quality}${f.check ? ' · <span class="tag">check this</span>' : ""}</span></td>
+      <td>${esc(f.from)} → ${esc(f.to)}<span class="sub">${f.mode === "list" ? "list at other end" : "sell instantly"}</span></td>
+      <td class="num">${abbr(f.buy)} → ${abbr(f.sell)}</td>
+      <td class="num profit">${f.est ? "≈" : "+"}${abbr(f.total)}${usual}</td>
+      <td class="num">${confCell(f)}</td>
+      <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}${f.public ? '<span class="sub"><span class="tag">public</span></span>' : qtyNote ? `<span class="sub">${qtyNote}</span>` : ""}</td>
+    </tr>`;
+  }).join("")
+    : `<tr><td colspan="6" class="empty">${total === 0 && latest.flips.length ? "Nothing matches your filters — try clearing the search or lowering Min profit." : "No flips yet. They appear once you've seen the same item's price in two places."}</td></tr>`;
 }
 
-function priceKey(p) { return p.id + "|" + p.quality + "|" + p.cityId; }
+function renderCrafts(rows, total) {
+  $("crows").innerHTML = rows.length ? rows.map(c => {
+    const isOpen = openCrafts.has(c.id);
+    const row = `<tr class="craft" tabindex="0" data-id="${esc(c.id)}" aria-expanded="${isOpen}">
+      <td class="item">${esc(c.name)} <span class="tier">${esc(c.tier)}</span><span class="sub">${esc(CATEGORY[c.category] || c.category || "")}</span></td>
+      <td class="num">${abbr(c.cost)}</td>
+      <td class="num">${c.instant ? abbr(c.instant) : "–"}<span class="sub">${esc(c.instantAt || "")}</span></td>
+      <td class="num">${c.list ? abbr(c.list) : "–"}<span class="sub">${esc(c.listAt || "")}</span></td>
+      <td class="num ${c.best > 0 ? "profit" : "loss"}">${c.best > 0 ? "+" : ""}${abbr(c.best)}<span class="sub">${c.best === c.profit && c.instant ? "selling now" : "listing"} · ${c.percent.toFixed(0)}%</span></td>
+      <td class="num">${confCell(c)}</td>
+      <td class="num ${c.ageMin >= 60 ? "stale" : ""}">${ago(c.ageMin)}${c.public ? '<span class="sub"><span class="tag">public</span></span>' : ""}</td>
+    </tr>`;
+    const mats = isOpen ? `<tr class="mats"><td colspan="7"><ul>${c.materials.map(m =>
+      `<li><b>${m.count} × ${esc(m.name)}</b> ${m.crafted ? `craft for ${fmt(m.price)} each <span class="tag">cheaper to craft</span>` : `at ${fmt(m.price)} in ${esc(m.city)}`}</li>`).join("")}${c.fee ? `<li><b>Station fee</b> ${fmt(c.fee)} per item</li>` : ""}${c.qualities ? `<li><b>Sells at</b> ${c.qualities.map(q => `${QUALITY[q.quality] || "Q" + q.quality} ${fmt(q.list || q.instant)}`).join(" · ")} (profit shown is for Normal)</li>` : ""}</ul></td></tr>` : "";
+    return row + mats;
+  }).join("")
+    : `<tr><td colspan="7" class="empty">${latest.crafts.length ? "Nothing matches these filters." : "No crafts yet. Browse refined materials (planks, cloth, bars) and finished items."}</td></tr>`;
+}
 
-function renderPrices(id, rows, q) {
+function renderPrices(rows) {
   const cell = (price, amount, pub) => price
     ? `${fmt(price)}<span class="sub">${pub ? '<span class="tag">public</span>' : amount ? fmt(amount) + " on offer" : ""}</span>` : "–";
-  const chartable = id === "prows"; // only the All prices tab opens charts
-  $(id).innerHTML = rows.length ? rows.map(p => {
-    const k = priceKey(p);
-    const row = `
-    <tr class="price${chartable ? " clickable" : ""}" data-key="${esc(k)}" ${chartable ? 'tabindex="0"' : ""}>
-      <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="id">${QUALITY[p.quality] || "Quality " + p.quality}, ${esc(p.id)}</span></td>
+  $("prows").innerHTML = rows.length ? rows.map(p => {
+    const k = p.id + "|" + p.quality + "|" + p.cityId;
+    const row = `<tr class="price clickable" data-key="${esc(k)}" tabindex="0">
+      <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="sub">${QUALITY[p.quality] || "Q" + p.quality}, ${esc(p.id)}</span></td>
       <td>${esc(p.city)}</td>
       <td class="num">${cell(p.sell, p.sellAmount, p.sellPublic)}</td>
       <td class="num">${cell(p.buy, p.buyAmount, p.buyPublic)}${p.check ? '<span class="sub"><span class="tag">check this</span></span>' : ""}</td>
       <td class="num ${p.ageMin >= 60 ? "stale" : ""}">${ago(p.ageMin)}</td>
     </tr>`;
-    const chart = chartable && chartOpen.has(k)
-      ? `<tr class="chart-row"><td colspan="5">${chartSVG(chartData[k], p)}</td></tr>` : "";
+    const chart = chartOpen.has(k) ? `<tr class="chart-row"><td colspan="5">${chartSVG(chartData[k], p)}</td></tr>` : "";
     return row + chart;
   }).join("")
-    : `<tr><td colspan="5" class="empty">${q ? "Nothing matches your search." : "No prices yet. Go into a marketplace and open the market."}</td></tr>`;
+    : `<tr><td colspan="5" class="empty">${searchVal() ? "Nothing matches your search." : "No prices yet. Open a marketplace, or get public prices."}</td></tr>`;
 }
 
-function renderFlips(s, flips) {
-  $("rows").innerHTML = flips.length ? flips.map(f => `
-    <tr class="${fresh.has(flipKey(f)) ? "fresh" : ""}">
-      <td class="item">${esc(f.name)} <span class="tier">${esc(f.tier)}</span><span class="id">${QUALITY[f.quality] || "Quality " + f.quality}, ${esc(f.id)}</span></td>
-      <td>${esc(f.from)}</td>
-      <td>${esc(f.to)}</td>
-      <td class="num">${fmt(f.buy)}</td>
-      <td class="num">${fmt(f.sell)}<span class="sub">${f.check ? '<span class="tag">check this</span>' : f.mode === "list" ? "list here" : "sell now"}</span></td>
-      <td class="num">+${fmt(f.profit)}<span class="sub">${f.percent.toFixed(0)}%</span></td>
-      <td class="num">${f.public ? "?" : (f.est ? "≈" : "") + fmt(f.qty)}</td>
-      <td class="num profit">${f.est ? "≈" : "+"}${fmt(f.total)}${f.public ? '<span class="sub">for 1, check in game</span>' : f.est ? '<span class="sub">est., up to what\'s listed</span>' : ""}</td>
-      <td class="num profit">${f.relOk ? "+" + fmt(Math.round(f.total * f.reliability)) : "–"}</td>
-      <td class="num">${f.relOk ? Math.round(f.reliability * 100) + "%<span class=\"sub\">of the time</span>" : "–"}</td>
-      <td class="num">${vsNormalText(f)}</td>
-      <td>${f.swingOk ? esc(f.swingLabel) + `<span class="sub">${f.swing.toFixed(0)}%</span>` : "–"}</td>
-      <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}<span class="sub">${Math.round(f.confidence * 100)}% sure${f.public ? ' · <span class="tag">public</span>' : ""}</span></td>
-    </tr>`).join("")
-    : `<tr><td colspan="13" class="empty">${s.flips.length ? "No flips match these filters." : "No flips yet. They appear once you've checked the same items in two places."}</td></tr>`;
-}
-
-// "18% below" / "6% above" the normal price, or "–" without enough history.
-function vsNormalText(f) {
-  if (!f.vsNormalOk) return "–";
-  const v = Math.round(Math.abs(f.vsNormal));
-  if (v === 0) return "at normal";
-  return v + "% " + (f.vsNormal < 0 ? "below" : "above");
-}
-
-function money(v, ok) { return ok ? fmt(v) : "–"; }
-function renderCrafts(s, crafts) {
-  $("crows").innerHTML = crafts.length ? crafts.slice(0, 200).map(c => {
-    const isOpen = open.has(c.id);
-    const row = `
-    <tr class="craft" tabindex="0" data-id="${esc(c.id)}" aria-expanded="${isOpen}">
-      <td class="item">${esc(c.name)} <span class="tier">${esc(c.tier)}</span><span class="id">${esc(CATEGORY[c.category] || c.category)}</span></td>
-      <td class="num">${fmt(c.cost)}</td>
-      <td class="num">${money(c.instant, c.instant)}<span class="sub">${esc(c.instantAt || "")}</span></td>
-      <td class="num">${money(c.list, c.list)}<span class="sub">${esc(c.listAt || "")}</span></td>
-      <td class="num ${c.best > 0 ? "profit" : "loss"}">${c.best > 0 ? "+" : ""}${fmt(c.best)}<span class="sub">${c.best === c.profit && c.instant ? "selling now" : "listing"}</span></td>
-      <td class="num">${c.relOk ? Math.round(c.reliability * 100) + "%<span class=\"sub\">of the time</span>" : "–"}</td>
-      <td class="num">${c.percent.toFixed(0)}%</td>
-      <td class="num ${c.ageMin >= 60 ? "stale" : ""}">${ago(c.ageMin)}${c.public ? '<span class="sub"><span class="tag">public</span></span>' : ""}</td>
-    </tr>`;
-    const mats = isOpen ? `<tr class="mats"><td colspan="8"><ul>${c.materials.map(m =>
-      `<li><b>${m.count} × ${esc(m.name)}</b> ${m.crafted ? `craft for ${fmt(m.price)} each <span class="tag">cheaper to craft</span>` : `at ${fmt(m.price)} in ${esc(m.city)}`}</li>`).join("")}${c.fee ? `<li><b>Station fee</b> ${fmt(c.fee)} per item</li>` : ""}${c.qualities ? `<li><b>Sells at</b> ${c.qualities.map(q => `${QUALITY[q.quality] || "Q" + q.quality} ${fmt(q.list || q.instant)}`).join(" · ")} <span class="sub" style="display:inline">(profit shown is for Normal)</span></li>` : ""}</ul></td></tr>` : "";
-    return row + mats;
-  }).join("")
-    : `<tr><td colspan="8" class="empty">${s.crafts.length ? "Nothing matches these filters." : "No crafts yet. Browse the materials (like planks and cloth) and the finished items, and they'll show up here."}</td></tr>`;
-}
-
+// ---- heroes ----
 function renderRoute(s, flips) {
-  const top = [...flips].sort((a, b) => b.total - a.total)[0];
-  if (!top && s.flips.length) {
-    $("route").innerHTML = `<p class="caption">Flips</p><h2>No flips match your search or filters</h2>
-      <p class="note" style="margin:0">There are ${fmt(s.flips.length)} flips in total. Clear the search box or lower the minimum profit to see them.</p>`;
+  const top = flips[0];
+  if (!top && latest.flips.length) {
+    $("route").innerHTML = `<p class="caption">Flips</p><h2>Nothing matches your filters</h2>
+      <p class="note" style="margin:0">There are ${fmt(latest.flips.length)} flips in total. Clear the search, raise your budget, or lower Min profit.</p>`;
     return;
   }
   if (!top) {
@@ -693,156 +670,108 @@ function renderRoute(s, flips) {
       [s.listening, "Sniffer is listening to your network"],
       [s.lastPacketSec >= 0, "Albion is running"],
       [s.inMarket, "You're inside a marketplace"],
-      [s.orders > 0 || s.all.length > 0, "You've opened the market and browsed some items"],
-      [s.flips.length > 0, "You've checked the same items in a second city or the Black Market"],
+      [s.orders > 0 || s.priceTotal > 0, "You've opened the market and browsed items"],
+      [latest.flips.length > 0, "You've seen the same item's price in two places"],
     ];
-    $("route").innerHTML = `
-      <p class="caption">Getting started</p>
-      <h2>No flips yet</h2>
-      <ol class="steps">${steps.map(([done, text], i) =>
-        `<li class="${done ? "done" : ""}"><span class="n">${done ? "✓" : i + 1}</span><span>${text}</span></li>`).join("")}
-      </ol>`;
+    $("route").innerHTML = `<p class="caption">Getting started</p><h2>No flips yet</h2>
+      <ol class="steps">${steps.map(([d, t], i) => `<li class="${d ? "done" : ""}"><span class="n">${d ? "✓" : i + 1}</span><span>${t}</span></li>`).join("")}</ol>`;
     return;
   }
   $("route").innerHTML = `
-    <p class="caption">Best flip right now, ${top.ageMin < 1 ? "prices just seen" : "prices seen " + ago(top.ageMin) + " ago"}</p>
+    <p class="caption">Best flip right now · ${top.ageMin < 1 ? "prices just seen" : "prices seen " + ago(top.ageMin) + " ago"}</p>
     <h2>${esc(top.name)}<small>${esc(top.tier)}, ${QUALITY[top.quality] || ""}</small></h2>
     <div class="path">
-      <div class="stop"><div class="city">${esc(top.from)}</div><div class="price">Buy ${fmt(top.qty)} from ${fmt(top.buy)}</div></div>
-      <div class="trail"><div class="gain">${top.est ? "≈" : "+"}${fmt(top.total)}<span>${top.percent.toFixed(0)}% on the first${top.est ? ", est." : ""}</span></div></div>
-      <div class="stop end"><div class="city">${esc(top.to)}</div><div class="price">${top.mode === "list" ? "List" : "Sell now"} from ${fmt(top.sell)}</div></div>
+      <div class="stop"><div class="city">${esc(top.from)}</div><div class="price">Buy from ${abbr(top.buy)}</div></div>
+      <div class="arrow">→</div>
+      <div class="gain"><b>${top.est ? "≈" : "+"}${abbr(top.total)}</b><span>${top.percent.toFixed(0)}% on the first${top.est ? " · est." : ""}</span></div>
+      <div class="arrow">→</div>
+      <div class="stop"><div class="city">${esc(top.to)}</div><div class="price">${top.mode === "list" ? "List" : "Sell"} from ${abbr(top.sell)}</div></div>
     </div>`;
 }
-
 function renderCraftHero(s, crafts) {
-  const top = crafts.filter(c => c.best > 0).sort((a, b) => b.best - a.best)[0];
+  const top = crafts.filter(c => c.best > 0)[0];
   if (!top) {
-    $("route").innerHTML = `
-      <p class="caption">Crafting</p>
-      <h2>No profitable crafts yet</h2>
-      <p class="note" style="margin:0">To price a craft, the sniffer needs the price of every material and of the finished item. Browse refined materials (planks, cloth, bars, leather) and some finished items in a market, and they'll appear.</p>`;
+    $("route").innerHTML = `<p class="caption">Crafting</p><h2>No profitable crafts yet</h2>
+      <p class="note" style="margin:0">Browse refined materials (planks, cloth, bars, leather) and some finished items, and they'll appear.</p>`;
     return;
   }
   const sellNow = top.best === top.profit && top.instant;
   $("route").innerHTML = `
-    <p class="caption">Best craft right now, ${top.ageMin < 1 ? "prices just seen" : "prices seen " + ago(top.ageMin) + " ago"}</p>
+    <p class="caption">Best craft right now · ${top.ageMin < 1 ? "prices just seen" : "prices seen " + ago(top.ageMin) + " ago"}</p>
     <h2>${esc(top.name)}<small>${esc(top.tier)}</small></h2>
     <div class="path">
-      <div class="stop"><div class="city">${top.materials.length} materials</div><div class="price">Cost ${fmt(top.cost)} each</div></div>
-      <div class="trail"><div class="gain">+${fmt(top.best)}<span>${top.percent.toFixed(0)}% each</span></div></div>
-      <div class="stop end"><div class="city">${esc(sellNow ? top.instantAt : top.listAt)}</div><div class="price">${sellNow ? "Sell now for " + fmt(top.instant) : "List for " + fmt(top.list)}</div></div>
+      <div class="stop"><div class="city">${top.materials.length} materials</div><div class="price">Cost ${abbr(top.cost)} each</div></div>
+      <div class="arrow">→</div>
+      <div class="gain"><b>+${abbr(top.best)}</b><span>${top.percent.toFixed(0)}% each</span></div>
+      <div class="arrow">→</div>
+      <div class="stop"><div class="city">${esc(sellNow ? top.instantAt : top.listAt)}</div><div class="price">${sellNow ? "Sell for " + abbr(top.instant) : "List for " + abbr(top.list)}</div></div>
     </div>`;
 }
-
-
-// ---- trip planner ----
-// The plan itself is worked out on the server (trips.go) from the carry
-// weight and budget sent with each poll; here we just draw it.
-function renderTrips(s, trips) {
-  $("trips").innerHTML = trips.length ? trips.slice(0, 3).map(t => `
-    <div class="trip">
-      <h4>${esc(t.from)} to ${esc(t.to)}</h4>
-      <p class="sum"><b>+${fmt(t.profit)}</b> profit, ${fmt(t.spent)} silver to buy, ${fmt(Math.round(t.kg))} kg</p>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Item</th><th class="num">Buy</th><th class="num">Weight</th><th class="num">Spend</th><th class="num">Profit</th></tr></thead>
-        <tbody>${t.picks.map(p => `
-          <tr>
-            <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span>${p.public ? '<span class="tag">public</span>' : ""}<span class="id">${QUALITY[p.quality] || ""}${p.public ? ", only 1 counted: check how many in game" : ""}</span></td>
-            <td class="num">${fmt(p.n)}</td>
-            <td class="num">${p.weight ? fmt(Math.round(p.n * p.weight * 10) / 10) + " kg" : "?"}</td>
-            <td class="num">${fmt(p.spend)}</td>
-            <td class="num profit">+${fmt(p.gain)}</td>
-          </tr>`).join("")}</tbody>
-      </table></div>
-    </div>`).join("")
-    : `<p class="empty">No trips yet. Trips are built from your flips, so check the same items in two places first.</p>`;
-}
-
 function renderTripHero(s, trips) {
   const t = trips[0];
   if (!t) {
     $("route").innerHTML = `<p class="caption">Trip planner</p><h2>No trips yet</h2>
-      <p class="note" style="margin:0">Once you have flips, this plans a full load for your mount: what to buy, how many, and where to sell.</p>`;
+      <p class="note" style="margin:0">Once you have flips, this plans a full load: what to buy, how many, and where to sell.</p>`;
     return;
   }
   $("route").innerHTML = `
-    <p class="caption">Best trip for ${fmt(Number($("carry").value) || 0)} kg and ${fmt(Number($("budget").value) || 0)} silver</p>
-    <h2>${t.picks.length} ${t.picks.length === 1 ? "item" : "items"}, ${fmt(t.picks.reduce((n, p) => n + p.n, 0))} in total</h2>
+    <p class="caption">Best trip for ${fmt(Number($("carry").value) || 0)} kg and ${fmt(budgetVal())} silver</p>
+    <h2>${t.picks.length} ${t.picks.length === 1 ? "item" : "items"}, ${fmt(t.picks.reduce((n, p) => n + p.n, 0))} to carry</h2>
     <div class="path">
-      <div class="stop"><div class="city">${esc(t.from)}</div><div class="price">Spend ${fmt(t.spent)}</div></div>
-      <div class="trail"><div class="gain">+${fmt(t.profit)}<span>${fmt(Math.round(t.kg))} kg</span></div></div>
-      <div class="stop end"><div class="city">${esc(t.to)}</div><div class="price">Sell it all</div></div>
+      <div class="stop"><div class="city">${esc(t.from)}</div><div class="price">Spend ${abbr(t.spent)}</div></div>
+      <div class="arrow">→</div>
+      <div class="gain"><b>+${abbr(t.profit)}</b><span>${fmt(Math.round(t.kg))} kg</span></div>
+      <div class="arrow">→</div>
+      <div class="stop"><div class="city">${esc(t.to)}</div><div class="price">Sell it all</div></div>
     </div>`;
 }
+function renderTrips(trips) {
+  $("trips").innerHTML = trips.length ? trips.slice(0, 3).map(t => `
+    <div class="trip">
+      <h4>${esc(t.from)} → ${esc(t.to)}</h4>
+      <p class="tsum"><b>+${fmt(t.profit)}</b> profit · ${fmt(t.spent)} silver · ${fmt(Math.round(t.kg))} kg</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Item</th><th class="num">Buy</th><th class="num">Weight</th><th class="num">Spend</th><th class="num">Profit</th></tr></thead>
+        <tbody>${t.picks.map(p => `<tr>
+          <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span>${p.public ? '<span class="tag">public</span>' : ""}<span class="sub">${QUALITY[p.quality] || ""}${p.public ? ", check how many in game" : ""}</span></td>
+          <td class="num">${fmt(p.n)}</td>
+          <td class="num">${p.weight ? fmt(Math.round(p.n * p.weight * 10) / 10) + " kg" : "?"}</td>
+          <td class="num">${fmt(p.spend)}</td>
+          <td class="num profit">+${fmt(p.gain)}</td></tr>`).join("")}</tbody>
+      </table></div>
+    </div>`).join("")
+    : `<p class="empty">No trips yet. Trips are built from your flips — check the same items in two places first.</p>`;
+}
 
-// ---- recording ----
+// ---- troll/junk hidden list ----
+function renderHidden(s) {
+  const n = s.hiddenCount || 0;
+  $("hidden-box").hidden = n === 0;
+  if (n === 0) return;
+  $("hidden-count").textContent = `Hid ${fmt(n)} troll ${n === 1 ? "price" : "prices"}`;
+  $("hidden-toggle").textContent = showHidden ? "Hide" : "Show";
+  const list = $("hidden-list");
+  list.hidden = !showHidden;
+  if (!showHidden) return;
+  const extra = s.hidden.length < n ? ` (first ${fmt(s.hidden.length)})` : "";
+  list.innerHTML = s.hidden.map(h => `<li class="warn"><time>${h.side}</time><span>${esc(h.name)} in ${esc(h.city)}: ${fmt(h.price)} — ${esc(h.reason)}</span></li>`).join("") + (extra ? `<li><time></time><span>${extra}</span></li>` : "");
+}
+
+// ---- recording / public ----
 function renderRecording(r) {
-  $("rec").hidden = r.active || !!r.file;
+  $("rec-idle").hidden = r.active || !!r.file;
   $("rec-live").hidden = !r.active;
   $("rec-done").hidden = r.active || !r.file;
-  if (r.active) {
-    $("rec-left").textContent = `${Math.floor(r.secondsLeft / 60)}:${String(r.secondsLeft % 60).padStart(2, "0")}`;
-    $("rec-packets").textContent = fmt(r.packets);
-  } else if (r.file) {
-    $("rec-file").textContent = r.file;
-    $("rec-count").textContent = fmt(r.packets);
-  }
-}
-async function post(url) {
-  try { await fetch(url, {method: "POST"}); } catch (e) {}
-  refresh();
+  if (r.active) { $("rec-left").textContent = `${Math.floor(r.secondsLeft / 60)}:${String(r.secondsLeft % 60).padStart(2, "0")}`; $("rec-packets").textContent = fmt(r.packets); }
+  else if (r.file) { $("rec-file").textContent = r.file; $("rec-count").textContent = fmt(r.packets); }
 }
 function renderPublic(p) {
   $("pub-start").disabled = !!p.running;
   $("pub-start").textContent = p.running ? "Downloading…" : p.last ? "Download again" : "Get public prices";
-  $("pub-status").textContent = p.running ? `Batch ${p.done} of ${p.total}, ${fmt(p.prices || 0)} prices so far`
-    : p.error ? p.error
-    : p.last ? `Last downloaded at ${p.last}: ${fmt(p.prices || 0)} prices.` : "";
+  $("pub-status").textContent = p.running ? `Batch ${p.done} of ${p.total}, ${fmt(p.prices || 0)} so far`
+    : p.error ? p.error : p.last ? `Last at ${p.last}: ${fmt(p.prices || 0)} prices.` : "";
 }
-$("hidden-toggle").addEventListener("click", () => { showHidden = !showHidden; if (latest) renderHidden(latest); });
-$("pub-start").addEventListener("click", () => post("/api/public/fetch?region=" + encodeURIComponent($("region").value)));
-$("region").addEventListener("change", remember);
-
-$("rec-start").addEventListener("click", () => post("/api/record/start?seconds=120"));
-$("rec-stop").addEventListener("click", () => post("/api/record/stop"));
-$("rec-again").addEventListener("click", () => post("/api/record/start?seconds=120"));
-
-// ---- events ----
-$("tab-flips").addEventListener("click", () => { showTab("flips"); remember(); });
-$("tab-crafts").addEventListener("click", () => { showTab("crafts"); remember(); });
-$("tab-trips").addEventListener("click", () => { showTab("trips"); remember(); });
-$("tab-prices").addEventListener("click", () => { showTab("prices"); remember(); });
-
-document.querySelectorAll("th button[data-sort]").forEach(b => b.addEventListener("click", () => {
-  const key = b.dataset.sort;
-  sortTouched = true; // stop auto-switching to "best usual"
-  sortDir = key === sortKey ? -sortDir : (["name", "from", "to"].includes(key) ? 1 : -1);
-  sortKey = key;
-  document.querySelectorAll("th button[data-sort]").forEach(x => x.removeAttribute("aria-sort"));
-  b.setAttribute("aria-sort", sortDir > 0 ? "ascending" : "descending");
-  if (latest) render();
-}));
-document.querySelectorAll("th button[data-csort]").forEach(b => b.addEventListener("click", () => {
-  const key = b.dataset.csort;
-  csortDir = key === csortKey ? -csortDir : (key === "name" ? 1 : -1);
-  csortKey = key;
-  document.querySelectorAll("th button[data-csort]").forEach(x => x.removeAttribute("aria-sort"));
-  b.setAttribute("aria-sort", csortDir > 0 ? "ascending" : "descending");
-  if (latest) render();
-}));
-
-function toggleRow(e) {
-  const tr = e.target.closest("tr.craft");
-  if (!tr || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
-  e.preventDefault();
-  const id = tr.dataset.id;
-  open.has(id) ? open.delete(id) : open.add(id);
-  render();
-  const again = document.querySelector(`tr.craft[data-id="${CSS.escape(id)}"]`);
-  if (again) again.focus();
-}
-$("crows").addEventListener("click", toggleRow);
-$("crows").addEventListener("keydown", toggleRow);
+async function post(url) { try { await fetch(url, {method: "POST"}); } catch (e) {} refresh(); }
 
 // ---- price history chart ----
 async function togglePriceChart(e) {
@@ -850,91 +779,88 @@ async function togglePriceChart(e) {
   if (!tr || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
   e.preventDefault();
   const k = tr.dataset.key;
-  if (chartOpen.has(k)) {
-    chartOpen.delete(k);
-    render();
-    return;
-  }
+  if (chartOpen.has(k)) { chartOpen.delete(k); render(); return; }
   const [item, quality, city] = k.split("|");
-  try {
-    const res = await fetch(`/api/history?item=${encodeURIComponent(item)}&quality=${quality}&city=${encodeURIComponent(city)}`);
-    chartData[k] = await res.json();
-  } catch (err) {
-    chartData[k] = [];
-  }
-  chartOpen.add(k);
-  render();
+  try { chartData[k] = await (await fetch(`/api/history?item=${encodeURIComponent(item)}&quality=${quality}&city=${encodeURIComponent(city)}`)).json(); }
+  catch (err) { chartData[k] = {}; }
+  chartOpen.add(k); render();
 }
-$("prows").addEventListener("click", togglePriceChart);
-$("prows").addEventListener("keydown", togglePriceChart);
-$("hist-export").addEventListener("click", async () => {
-  $("hist-status").textContent = "Exporting…";
-  try {
-    const res = await fetch("/api/history/export", {method: "POST"});
-    $("hist-status").textContent = res.ok ? "Saved history-export.csv next to the sniffer." : "Export failed.";
-  } catch (e) { $("hist-status").textContent = "Export failed."; }
-});
-
-// chartSVG draws cheapest-sell (muted) and best-buy (gold) prices over time
-// as an inline SVG, no chart library.
 function chartSVG(data, p) {
   const points = (data && data.points) || [];
   const band = data && data.band && data.band.ok ? data.band : null;
   const sell = points.filter(d => d.side === "sell").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
   const buy = points.filter(d => d.side === "buy").map(d => ({t: Date.parse(d.time), v: d.price})).sort((a, b) => a.t - b.t);
-  if (!sell.length && !buy.length) {
-    return `<p class="note" style="margin:0">No price history yet for ${esc(p.name)} in ${esc(p.city)}. It builds up as you keep browsing.</p>`;
-  }
+  if (!sell.length && !buy.length) return `<p class="note" style="margin:0">No price history yet for ${esc(p.name)} in ${esc(p.city)}. It builds up as you keep browsing.</p>`;
   const all = sell.concat(buy);
   const W = 640, H = 160, padX = 48, padY = 16;
   let tMin = Math.min(...all.map(d => d.t)), tMax = Math.max(...all.map(d => d.t));
   let vMin = Math.min(...all.map(d => d.v)), vMax = Math.max(...all.map(d => d.v));
   if (band) { vMin = Math.min(vMin, band.low); vMax = Math.max(vMax, band.high); }
-  if (tMax === tMin) { tMax = tMin + 1; }
-  if (vMax === vMin) { vMax = vMin + 1; }
+  if (tMax === tMin) tMax = tMin + 1;
+  if (vMax === vMin) vMax = vMin + 1;
   const x = t => padX + (t - tMin) / (tMax - tMin) * (W - padX - 8);
   const y = v => H - padY - (v - vMin) / (vMax - vMin) * (H - padY * 2);
-  const line = (pts, color) => {
-    if (!pts.length) return "";
-    if (pts.length === 1) return `<circle cx="${x(pts[0].t).toFixed(1)}" cy="${y(pts[0].v).toFixed(1)}" r="3" fill="${color}"/>`;
-    const d = pts.map(pt => `${x(pt.t).toFixed(1)},${y(pt.v).toFixed(1)}`).join(" ");
-    return `<polyline points="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
-  };
-  const gold = "var(--gold)", muted = "var(--muted)", line2 = "var(--line)", text = "var(--muted)";
-  const yLabel = v => `<text x="${padX - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="${text}">${fmt(Math.round(v))}</text>`;
+  const line = (pts, color) => !pts.length ? "" : pts.length === 1
+    ? `<circle cx="${x(pts[0].t).toFixed(1)}" cy="${y(pts[0].v).toFixed(1)}" r="3" fill="${color}"/>`
+    : `<polyline points="${pts.map(pt => `${x(pt.t).toFixed(1)},${y(pt.v).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+  const muted = "var(--muted)", gold = "var(--gold)", line2 = "var(--line)";
+  const yl = v => `<text x="${padX - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="${muted}">${fmt(Math.round(v))}</text>`;
   const when = t => new Date(t).toLocaleString("en-GB", {day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"});
-  return `
-  <div class="chart">
-    <div class="chart-legend">
-      <span><i style="background:${muted}"></i>Cheapest to buy (sell orders)</span>
-      <span><i style="background:${gold}"></i>Best to sell (buy orders)</span>
-      ${band ? `<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>` : ""}
-    </div>
+  return `<div class="chart">
+    <div class="chart-legend"><span><i style="background:${muted}"></i>Cheapest to buy</span><span><i style="background:${gold}"></i>Best to sell</span>${band ? `<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>` : ""}</div>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Price over time">
-      ${band ? `<rect x="${padX}" y="${y(band.high).toFixed(1)}" width="${(W - 8 - padX).toFixed(1)}" height="${Math.max(1, y(band.low) - y(band.high)).toFixed(1)}" fill="var(--gold)" opacity="0.08"/>
-      <line x1="${padX}" y1="${y(band.normal).toFixed(1)}" x2="${W - 8}" y2="${y(band.normal).toFixed(1)}" stroke="var(--gold-dim)" stroke-dasharray="4 4"/>` : ""}
+      ${band ? `<rect x="${padX}" y="${y(band.high).toFixed(1)}" width="${(W - 8 - padX).toFixed(1)}" height="${Math.max(1, y(band.low) - y(band.high)).toFixed(1)}" fill="var(--gold)" opacity="0.08"/><line x1="${padX}" y1="${y(band.normal).toFixed(1)}" x2="${W - 8}" y2="${y(band.normal).toFixed(1)}" stroke="var(--gold-dim)" stroke-dasharray="4 4"/>` : ""}
       <line x1="${padX}" y1="${padY}" x2="${padX}" y2="${H - padY}" stroke="${line2}"/>
       <line x1="${padX}" y1="${H - padY}" x2="${W - 8}" y2="${H - padY}" stroke="${line2}"/>
-      ${yLabel(vMax)}${yLabel(vMin)}
-      ${line(sell, muted)}
-      ${line(buy, gold)}
+      ${yl(vMax)}${yl(vMin)}${line(sell, muted)}${line(buy, gold)}
     </svg>
     <div class="chart-axis"><span>${esc(when(tMin))}</span><span>${esc(when(tMax))}</span></div>
   </div>`;
 }
 
-$("alerts").addEventListener("change", () => {
-  if ($("alerts").checked && "Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-  }
-  if ($("alerts").checked) chime();  // a test sound, and it unlocks audio in the browser
+// ---- wiring ----
+function resetPages() { flipPage = craftPage = pricePage = 0; }
+$("adv-toggle").addEventListener("click", () => {
+  const open = $("advanced").hidden;
+  $("advanced").hidden = !open;
+  $("adv-toggle").setAttribute("aria-expanded", open);
+  $("adv-toggle").textContent = open ? "Advanced ▴" : "Advanced ▾";
 });
-["search", "min", "alert-at"].forEach(id => $(id).addEventListener("input", () => { remember(); latest && render(); }));
-["cat", "profitable", "alerts"].forEach(id => $(id).addEventListener("change", () => { remember(); latest && render(); }));
-// carry and budget feed the server-side trip planner, so changing them refetches.
-["premium", "age", "rr", "fee", "fresh"].forEach(id => $(id).addEventListener("change", () => { remember(); refresh(); }));
-// carry and budget feed the server-side trip planner, so changing them refetches.
-["carry", "budget", "haul", "risk"].forEach(id => $(id).addEventListener("input", () => { remember(); refresh(); }));
+["tab-flips", "tab-crafts", "tab-trips", "tab-prices"].forEach(id =>
+  $(id).addEventListener("click", () => { showTab(id.slice(4)); remember(); }));
+$("hidden-toggle").addEventListener("click", () => { showHidden = !showHidden; if (latest) renderHidden(latest); });
+$("pub-start").addEventListener("click", () => post("/api/public/fetch?region=" + encodeURIComponent($("region").value)));
+$("rec-start").addEventListener("click", () => post("/api/record/start?seconds=120"));
+$("rec-stop").addEventListener("click", () => post("/api/record/stop"));
+$("rec-again").addEventListener("click", () => post("/api/record/start?seconds=120"));
+$("crows").addEventListener("click", e => toggleCraft(e));
+$("crows").addEventListener("keydown", e => toggleCraft(e));
+$("prows").addEventListener("click", togglePriceChart);
+$("prows").addEventListener("keydown", togglePriceChart);
+$("hist-export").addEventListener("click", async () => {
+  $("hist-status").textContent = "Exporting…";
+  try { const res = await fetch("/api/history/export", {method: "POST"}); $("hist-status").textContent = res.ok ? "Saved history-export.csv next to the sniffer." : "Export failed."; }
+  catch (e) { $("hist-status").textContent = "Export failed."; }
+});
+function toggleCraft(e) {
+  const tr = e.target.closest("tr.craft");
+  if (!tr || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  const id = tr.dataset.id;
+  openCrafts.has(id) ? openCrafts.delete(id) : openCrafts.add(id);
+  render();
+  const again = document.querySelector(`tr.craft[data-id="${CSS.escape(id)}"]`);
+  if (again) again.focus();
+}
+$("alerts").addEventListener("change", () => {
+  if ($("alerts").checked && "Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  if ($("alerts").checked) chime();
+});
+// Search and budget affect the server (prices page, trips) and the client lists.
+["search", "budget"].forEach(id => $(id).addEventListener("input", () => { resetPages(); remember(); refresh(); }));
+["min", "flip-sort", "craft-sort", "cat", "profitable", "alert-at"].forEach(id => $(id).addEventListener("input", () => { resetPages(); remember(); latest && render(); }));
+["cat", "profitable"].forEach(id => $(id).addEventListener("change", () => { resetPages(); remember(); latest && render(); }));
+["premium", "age", "rr", "fee", "fresh", "carry"].forEach(id => $(id).addEventListener("change", () => { resetPages(); remember(); refresh(); }));
 
 restore();
 refresh();

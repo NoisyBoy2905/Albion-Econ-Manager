@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #1b2027; --panel: #222932; --line: #333c48; --text: #d9dee5; --muted: #8b95a3;
+  --bg: #1b2027; --panel: #222932; --line: #333c48; --rowline: #262e38; --text: #d9dee5; --muted: #8b95a3;
   --gold: #e3b341; --gold-dim: #8a7034; --warn: #d45b6a; --ok: #7fb58a;
   --serif: "Alegreya", Georgia, serif; --sans: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
 }
@@ -17,51 +17,95 @@
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font: 16px/1.45 var(--sans); }
 a { color: var(--gold); }
-header { padding: 16px 20px; border-bottom: 1px solid var(--line); }
-header h1 { font: 700 24px/1.2 var(--serif); margin: 0 0 4px; }
-.sub { color: var(--muted); font-size: 15px; }
+.sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.tag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; vertical-align: 1px; }
 .warn { color: #f0c6cc; }
-.desktop-note { color: var(--muted); font-size: 14px; margin-top: 6px; }
-.tabs { display: flex; gap: 4px; margin: 0; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.tabs button {
-  background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted);
-  font: 700 18px var(--serif); border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
+
+header { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font: 700 26px/1.2 var(--serif); margin: 0 0 4px; }
+.meta { color: var(--muted); font-size: 15px; }
+.desktop-note { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+.hero { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.hero .caption { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+.hero h2 { font: 700 26px/1.15 var(--serif); margin: 0 0 14px; }
+.hero h2 small { font: 500 15px var(--sans); color: var(--muted); margin-left: 8px; }
+.path { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 16px; max-width: 700px; }
+.path .arrow { color: var(--gold-dim); font-size: 20px; }
+.stop .city { font: 700 19px/1.2 var(--serif); }
+.stop .price { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gain { text-align: center; }
+.gain b { font: 600 26px var(--sans); color: var(--gold); font-variant-numeric: tabular-nums; }
+.gain span { display: block; font-size: 12px; color: var(--muted); }
+
+.controls { display: flex; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.field { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px; }
+.field label { color: var(--muted); font-size: 14px; }
+.field input { background: none; border: 0; outline: none; color: var(--text); font: inherit; width: 130px; }
+.field.grow { flex: 1 1 240px; }
+.field.grow input { width: 100%; }
+.field.budget { border-color: var(--gold-dim); }
+.field.budget label, .field.budget input { color: var(--gold); }
+.field select { background: none; border: 0; color: var(--text); font: inherit; outline: none; }
+
+.tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { background: none; border: 0; padding: 12px 10px; cursor: pointer; color: var(--muted); font: 700 18px var(--serif); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--gold); }
 .tabs button span { font: 500 14px var(--sans); color: var(--muted); margin-left: 6px; }
-main { padding: 16px 20px 48px; }
-.tools { margin: 0 0 14px; }
-input[type=search] {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px;
-  color: inherit; font: inherit; width: 100%; max-width: 360px;
-}
+
+main { padding: 12px 20px 48px; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th { text-align: left; font-weight: 500; color: var(--muted); font-size: 14px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th.num, td.num { text-align: right; }
-td { padding: 9px 10px; border-bottom: 1px solid #262e38; white-space: nowrap; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.num { text-align: right; }
+td { padding: 11px 10px; border-bottom: 1px solid var(--rowline); white-space: nowrap; vertical-align: middle; }
+td.num { text-align: right; }
 tbody tr:hover td { background: var(--panel); }
 td.item { font-family: var(--serif); font-size: 17px; }
-td.item .id { display: block; font: 13px var(--sans); color: var(--muted); }
+td.item .sub { font-family: var(--sans); }
 td.profit { color: var(--gold); font-weight: 600; }
+td.loss { color: var(--warn); }
 td.stale { color: var(--warn); }
-.tier { color: var(--muted); }
-.sub2 { display: block; font-size: 13px; color: var(--muted); }
-.tag { display: inline-block; font-size: 12px; line-height: 1; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
-.empty { color: var(--muted); padding: 24px 10px; }
+.tier { color: var(--muted); font-size: 14px; }
+.empty { color: var(--muted); padding: 28px 10px; }
+.bar { width: 86px; height: 4px; border-radius: 2px; background: var(--line); margin: 3px 0 0 auto; overflow: hidden; }
+.bar > i { display: block; height: 4px; background: var(--gold); border-radius: 2px; }
+.paging { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 14px; padding: 14px 0 2px; }
+.paging .pbtns { display: flex; gap: 8px; }
+.btn { background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--gold); }
+.btn:disabled { opacity: .5; cursor: default; }
 tr.clickable { cursor: pointer; }
+tr.chart-row td { padding: 0 10px 16px; }
+.chart svg { width: 100%; height: 160px; display: block; background: #1e242c; border: 1px solid var(--line); border-radius: 6px; }
 .chart-legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin: 6px 0; flex-wrap: wrap; }
-.chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: 1px; }
-svg { width: 100%; height: auto; background: #1e242c; border: 1px solid var(--line); border-radius: 6px; }
-@media (max-width: 600px) { th, td { padding: 7px 8px; } header, main, .tabs { padding-left: 14px; padding-right: 14px; } }
+.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.note { color: var(--muted); font-size: 13px; margin: 14px 0 0; max-width: 72ch; }
+@media (max-width: 600px) {
+  header, .hero, .controls, .tabs, main { padding-left: 14px; padding-right: 14px; }
+  .path { grid-template-columns: 1fr; gap: 8px; } .path .arrow { display: none; } .gain { text-align: left; }
+}
+[hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <header>
   <h1>Albion Econ Manager</h1>
-  <div class="sub" id="updated">Loading…</div>
+  <div class="meta" id="updated">Loading…</div>
   <div class="desktop-note">Public prices only, from the Albion Data Project. For live prices from your own game, use the desktop sniffer.</div>
 </header>
+
+<section class="hero" id="hero" hidden></section>
+
+<div class="controls">
+  <div class="field grow"><input type="search" id="search" placeholder="Search items or cities" aria-label="Search"></div>
+  <div class="field budget"><label for="budget">Silver I have</label><input type="number" id="budget" min="0" step="100000" value="0" aria-label="How much silver you have"></div>
+  <div class="field"><label for="flip-sort">Sort</label><select id="flip-sort" aria-label="Sort flips">
+    <option value="usual">Best usual profit</option><option value="total">Biggest profit</option>
+    <option value="reliability">Most reliable</option><option value="percent">Best %</option>
+  </select></div>
+</div>
 
 <div class="tabs" role="tablist">
   <button role="tab" id="tab-flips" aria-selected="true">Flips<span id="n-flips"></span></button>
@@ -72,131 +116,220 @@ svg { width: 100%; height: auto; background: #1e242c; border: 1px solid var(--li
 <main>
   <section id="panel-flips">
     <div class="table-wrap"><table><thead><tr>
-      <th>Item</th><th>Buy in</th><th>Sell in</th><th class="num">Buy for</th><th class="num">Sell for</th>
-      <th class="num">Each</th><th class="num">Total</th><th class="num">Best usual</th><th class="num">Reliability</th><th class="num">vs normal</th><th>Swing</th>
+      <th>Item</th><th>Route</th><th class="num">Buy → Sell</th><th class="num">Profit</th><th class="num">Confidence</th><th class="num">Age</th>
     </tr></thead><tbody id="flip-rows"></tbody></table></div>
+    <div class="paging" id="flip-paging"></div>
   </section>
   <section id="panel-crafts" hidden>
     <div class="table-wrap"><table><thead><tr>
-      <th>Item</th><th class="num">Materials</th><th class="num">Sell now</th><th class="num">List for</th><th class="num">Best profit</th><th class="num">Reliability</th>
+      <th>Item</th><th class="num">Materials</th><th class="num">Sell now</th><th class="num">List for</th><th class="num">Best profit</th><th class="num">Confidence</th>
     </tr></thead><tbody id="craft-rows"></tbody></table></div>
+    <div class="paging" id="craft-paging"></div>
   </section>
   <section id="panel-prices" hidden>
-    <div class="tools"><input type="search" id="search" placeholder="Search items or cities" aria-label="Search prices"></div>
     <div class="table-wrap"><table><thead><tr>
       <th>Item</th><th>City</th><th class="num">Cheapest to buy</th><th class="num">Best to sell</th><th class="num">Age</th>
     </tr></thead><tbody id="price-rows"></tbody></table></div>
+    <div class="paging" id="price-paging"></div>
   </section>
+  <p class="note" id="more-note"></p>
 </main>
 
 <script>
+const QUALITY = ["", "Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
+const CATEGORY = {weapons:"Weapons",armors:"Armour",head:"Helmets",shoes:"Shoes",offhands:"Off-hands",capes:"Capes",bags:"Bags",mounts:"Mounts",consumables:"Food and potions",crafting:"Refining",gathering:"Gathering gear",artefacts:"Artefacts",furniture:"Furniture",other:"Other",vanity:"Vanity"};
+const PER_PAGE = 200;
 const $ = id => document.getElementById(id);
-const fmt = n => (n == null ? "–" : Number(n).toLocaleString("en-GB"));
+const fmt = n => (Number(n) || 0).toLocaleString("en-GB");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const ago = m => m < 1 ? "now" : m < 60 ? m + "m" : Math.floor(m / 60) + "h";
-const QUALITY = ["", "Normal", "Good", "Outstanding", "Excellent", "Masterpiece"];
+function abbr(n) {
+  n = Number(n) || 0; const neg = n < 0; n = Math.abs(n); let s;
+  if (n >= 1e6) s = (n / 1e6 >= 10 ? (n / 1e6).toFixed(1) : (n / 1e6).toFixed(2)) + "M";
+  else if (n >= 1e4) s = Math.round(n / 1e3) + "K";
+  else s = Math.round(n).toLocaleString("en-GB");
+  return (neg ? "-" : "") + s;
+}
 let current = null, prices = null, tab = "flips";
+let flipPage = 0, craftPage = 0, pricePage = 0;
 const chartOpen = new Set(), chartCache = {};
 
 function showTab(name) {
   tab = name;
-  ["flips", "crafts", "prices"].forEach(t => {
-    $("tab-" + t).setAttribute("aria-selected", t === name);
-    $("panel-" + t).hidden = t !== name;
-  });
-  if (name === "prices" && prices === null) loadPrices();
+  ["flips", "crafts", "prices"].forEach(t => { $("tab-" + t).setAttribute("aria-selected", t === name); $("panel-" + t).hidden = t !== name; });
+  if (name === "prices" && prices === null) loadPrices(); else render();
 }
 ["flips", "crafts", "prices"].forEach(t => $("tab-" + t).addEventListener("click", () => showTab(t)));
 
-function vsNormalText(f) {
-  if (!f.vsNormalOk) return "–";
-  const v = Math.round(Math.abs(f.vsNormal));
-  if (v === 0) return "at normal";
-  return v + "% " + (f.vsNormal < 0 ? "below" : "above");
+const budgetVal = () => Number($("budget").value) || 0;
+const searchVal = () => $("search").value.trim().toLowerCase();
+function resetPages() { flipPage = craftPage = pricePage = 0; }
+["search", "budget", "flip-sort"].forEach(id => $(id).addEventListener("input", () => { resetPages(); render(); }));
+
+function vsNormalText(f) { if (!f.vsNormalOk) return ""; const v = Math.round(Math.abs(f.vsNormal)); return v === 0 ? "at normal" : v + "% " + (f.vsNormal < 0 ? "below" : "above"); }
+function confCell(o) {
+  if (!o.relOk) return "–";
+  const pct = Math.round(o.reliability * 100);
+  const parts = [];
+  if (o.swingOk) parts.push(esc(o.swingLabel));
+  if (o.vsNormalOk) parts.push(vsNormalText(o));
+  return `${pct}%<div class="bar"><i style="width:${pct}%"></i></div>${parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : ""}`;
+}
+const usualVal = f => f.total * (f.relOk ? f.reliability : 0.000001);
+const bestOf = c => Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);
+
+function sortedFlips() {
+  const q = searchVal(), budget = budgetVal(), key = $("flip-sort").value;
+  const cmp = {
+    usual: (a, b) => usualVal(b) - usualVal(a), total: (a, b) => b.total - a.total,
+    reliability: (a, b) => (b.relOk ? b.reliability : -1) - (a.relOk ? a.reliability : -1),
+    percent: (a, b) => b.percent - a.percent,
+  }[key] || ((a, b) => b.total - a.total);
+  return (current.flips || [])
+    .filter(f => !budget || f.buy <= budget)
+    .filter(f => !q || `${f.name} ${f.id} ${f.from} ${f.to}`.toLowerCase().includes(q))
+    .sort(cmp);
+}
+function sortedCrafts() {
+  const q = searchVal(), budget = budgetVal();
+  return (current.crafts || []).map(c => ({...c, best: bestOf(c)}))
+    .filter(c => c.best > 0)
+    .filter(c => !budget || c.cost <= budget)
+    .filter(c => !q || `${c.name} ${c.id}`.toLowerCase().includes(q))
+    .sort((a, b) => usualVal2(b) - usualVal2(a));
+}
+const usualVal2 = c => c.best * (c.relOk ? c.reliability : 0.000001);
+
+function renderPaging(id, page, total, kind) {
+  const el = $(id);
+  if (total <= PER_PAGE) { el.innerHTML = total ? `<span>${fmt(total)} ${total === 1 ? "result" : "results"}</span>` : ""; return; }
+  const start = page * PER_PAGE + 1, end = Math.min(total, (page + 1) * PER_PAGE);
+  el.innerHTML = `<span>Showing ${fmt(start)}–${fmt(end)} of ${fmt(total)}</span>
+    <span class="pbtns"><button class="btn pbtn" data-kind="${kind}" data-dir="-1" ${page <= 0 ? "disabled" : ""}>‹ Prev</button>
+    <button class="btn pbtn" data-kind="${kind}" data-dir="1" ${end >= total ? "disabled" : ""}>Next ›</button></span>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".pbtn"); if (!b) return;
+  const dir = Number(b.dataset.dir);
+  if (b.dataset.kind === "flips") flipPage = Math.max(0, flipPage + dir);
+  else if (b.dataset.kind === "crafts") craftPage = Math.max(0, craftPage + dir);
+  else if (b.dataset.kind === "prices") pricePage = Math.max(0, pricePage + dir);
+  render();
+});
+
+function render() {
+  if (!current) return;
+  const flips = sortedFlips();
+  const crafts = sortedCrafts();
+  $("n-flips").textContent = flips.length ? fmt(flips.length) : "";
+  $("n-crafts").textContent = crafts.length ? fmt(crafts.length) : "";
+  if (flipPage * PER_PAGE >= flips.length) flipPage = 0;
+  if (craftPage * PER_PAGE >= crafts.length) craftPage = 0;
+  renderHero(flips[0]);
+  // The site holds only the top flips/crafts by profit; be clear about that.
+  const note = $("more-note");
+  if (tab === "flips" && current.flipCount > (current.flips || []).length)
+    note.textContent = `Showing the top ${fmt((current.flips || []).length)} flips by profit — the desktop sniffer shows all ${fmt(current.flipCount)}.`;
+  else if (tab === "crafts" && current.craftCount > (current.crafts || []).length)
+    note.textContent = `Showing the top ${fmt((current.crafts || []).length)} crafts by profit — the desktop sniffer shows all ${fmt(current.craftCount)}.`;
+  else note.textContent = "";
+  if (tab === "flips") {
+    renderFlips(flips.slice(flipPage * PER_PAGE, flipPage * PER_PAGE + PER_PAGE), flips.length);
+    renderPaging("flip-paging", flipPage, flips.length, "flips");
+  } else if (tab === "crafts") {
+    renderCrafts(crafts.slice(craftPage * PER_PAGE, craftPage * PER_PAGE + PER_PAGE), crafts.length);
+    renderPaging("craft-paging", craftPage, crafts.length, "crafts");
+  } else if (tab === "prices") renderPrices();
 }
 
-function renderFlips() {
-  const rows = current.flips || [];
-  $("n-flips").textContent = fmt(current.flipCount);
-  $("flip-rows").innerHTML = rows.length ? rows.map(f => `
-    <tr>
-      <td class="item">${esc(f.name)} <span class="tier">${esc(f.tier)}</span><span class="id">${QUALITY[f.quality] || ""}, ${esc(f.id)}</span></td>
-      <td>${esc(f.from)}</td><td>${esc(f.to)}</td>
-      <td class="num">${fmt(f.buy)}</td>
-      <td class="num">${fmt(f.sell)}<span class="sub2">${f.check ? "check this" : f.mode === "list" ? "list here" : "sell now"}</span></td>
-      <td class="num">+${fmt(f.profit)}<span class="sub2">${f.percent.toFixed(0)}%</span></td>
-      <td class="num profit">${f.est ? "≈" : "+"}${fmt(f.total)}${f.est ? '<span class="sub2">est.</span>' : ""}</td>
-      <td class="num">${f.relOk ? "+" + fmt(Math.round(f.total * f.reliability)) : "–"}</td>
-      <td class="num">${f.relOk ? Math.round(f.reliability * 100) + "%" : "–"}</td>
-      <td class="num">${vsNormalText(f)}</td>
-      <td>${f.swingOk ? esc(f.swingLabel) : "–"}</td>
-    </tr>`).join("") : `<tr><td colspan="11" class="empty">No flips right now.</td></tr>`;
+function renderHero(top) {
+  const h = $("hero");
+  if (!top) { h.hidden = true; return; }
+  h.hidden = false;
+  h.innerHTML = `
+    <p class="caption">Best flip right now · prices seen ${top.ageMin < 1 ? "just now" : ago(top.ageMin) + " ago"}</p>
+    <h2>${esc(top.name)}<small>${esc(top.tier)}, ${QUALITY[top.quality] || ""}</small></h2>
+    <div class="path">
+      <div class="stop"><div class="city">${esc(top.from)}</div><div class="price">Buy from ${abbr(top.buy)}</div></div>
+      <div class="arrow">→</div>
+      <div class="gain"><b>${top.est ? "≈" : "+"}${abbr(top.total)}</b><span>${top.percent.toFixed(0)}% on the first${top.est ? " · est." : ""}</span></div>
+      <div class="arrow">→</div>
+      <div class="stop"><div class="city">${esc(top.to)}</div><div class="price">${top.mode === "list" ? "List" : "Sell"} from ${abbr(top.sell)}</div></div>
+    </div>`;
 }
 
-function renderCrafts() {
-  const rows = (current.crafts || []).filter(c => Math.max(c.profit || 0, c.listProfit || 0) > 0);
-  $("n-crafts").textContent = fmt(rows.length);
-  $("craft-rows").innerHTML = rows.length ? rows.map(c => {
-    const best = Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);
+function renderFlips(rows, total) {
+  $("flip-rows").innerHTML = rows.length ? rows.map(f => {
+    const usual = f.relOk ? `<span class="sub">usual ${abbr(Math.round(f.total * f.reliability))} · ${f.percent.toFixed(0)}%</span>` : `<span class="sub">${f.percent.toFixed(0)}% each</span>`;
     return `<tr>
-      <td class="item">${esc(c.name)} <span class="tier">${esc(c.tier)}</span></td>
-      <td class="num">${fmt(c.cost)}</td>
-      <td class="num">${c.instant ? fmt(c.instant) : "–"}</td>
-      <td class="num">${c.list ? fmt(c.list) : "–"}</td>
-      <td class="num profit">+${fmt(best)}</td>
-      <td class="num">${c.relOk ? Math.round(c.reliability * 100) + "%" : "–"}</td>
+      <td class="item">${esc(f.name)} <span class="tier">${esc(f.tier)}</span><span class="sub">${QUALITY[f.quality] || "Q" + f.quality}${f.check ? ' · <span class="tag">check this</span>' : ""}</span></td>
+      <td>${esc(f.from)} → ${esc(f.to)}<span class="sub">${f.mode === "list" ? "list at other end" : "sell instantly"}</span></td>
+      <td class="num">${abbr(f.buy)} → ${abbr(f.sell)}</td>
+      <td class="num profit">${f.est ? "≈" : "+"}${abbr(f.total)}${usual}</td>
+      <td class="num">${confCell(f)}</td>
+      <td class="num ${f.ageMin >= 60 ? "stale" : ""}">${ago(f.ageMin)}<span class="sub"><span class="tag">public</span></span></td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6" class="empty">No profitable crafts right now.</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">${total === 0 && (current.flips || []).length ? "Nothing matches your filters." : "No flips right now."}</td></tr>`;
+}
+
+function renderCrafts(rows, total) {
+  $("craft-rows").innerHTML = rows.length ? rows.map(c => `
+    <tr>
+      <td class="item">${esc(c.name)} <span class="tier">${esc(c.tier)}</span><span class="sub">${esc(CATEGORY[c.category] || c.category || "")}</span></td>
+      <td class="num">${abbr(c.cost)}</td>
+      <td class="num">${c.instant ? abbr(c.instant) : "–"}</td>
+      <td class="num">${c.list ? abbr(c.list) : "–"}</td>
+      <td class="num profit">+${abbr(c.best)}<span class="sub">${c.percent.toFixed(0)}% each</span></td>
+      <td class="num">${confCell(c)}</td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">No profitable crafts right now.</td></tr>`;
 }
 
 async function loadPrices() {
-  try { prices = await (await fetch("data/prices.json")).json(); }
+  try { prices = await (await fetch("data/prices.json?t=" + Date.now())).json(); }
   catch (e) { prices = []; }
   $("n-prices").textContent = fmt(prices.length);
-  renderPrices();
+  render();
 }
-$("search").addEventListener("input", renderPrices);
-
-function priceKey(p) { return p.id + "|" + p.quality + "|" + p.cityId; }
-
 function renderPrices() {
   if (!prices) return;
-  const q = $("search").value.trim().toLowerCase();
-  const rows = prices.filter(p => !q || `${p.name} ${p.id} ${p.city}`.toLowerCase().includes(q)).slice(0, 1000);
-  $("price-rows").innerHTML = rows.length ? rows.map(p => {
-    const k = priceKey(p);
+  const q = searchVal();
+  const rows = prices.filter(p => !q || `${p.name} ${p.id} ${p.city}`.toLowerCase().includes(q));
+  $("n-prices").textContent = fmt(rows.length);
+  if (pricePage * PER_PAGE >= rows.length) pricePage = 0;
+  const page = rows.slice(pricePage * PER_PAGE, pricePage * PER_PAGE + PER_PAGE);
+  const cell = (price, amount, pub) => price ? `${fmt(price)}<span class="sub">${pub ? '<span class="tag">public</span>' : amount ? fmt(amount) + " on offer" : ""}</span>` : "–";
+  $("price-rows").innerHTML = page.length ? page.map(p => {
+    const k = p.id + "|" + p.quality + "|" + p.cityId;
     const row = `<tr class="clickable" data-key="${esc(k)}">
-      <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="id">${QUALITY[p.quality] || ""}, ${esc(p.id)}</span></td>
+      <td class="item">${esc(p.name)} <span class="tier">${esc(p.tier)}</span><span class="sub">${QUALITY[p.quality] || "Q" + p.quality}, ${esc(p.id)}</span></td>
       <td>${esc(p.city)}</td>
-      <td class="num">${p.sell ? fmt(p.sell) : "–"}</td>
-      <td class="num">${p.buy ? fmt(p.buy) : "–"}${p.check ? '<span class="tag">check this</span>' : ""}</td>
+      <td class="num">${cell(p.sell, p.sellAmount, p.sellPublic)}</td>
+      <td class="num">${cell(p.buy, p.buyAmount, p.buyPublic)}${p.check ? '<span class="tag">check this</span>' : ""}</td>
       <td class="num ${p.ageMin >= 60 ? "stale" : ""}">${ago(p.ageMin)}</td>
     </tr>`;
-    const chart = chartOpen.has(k) ? `<tr><td colspan="5">${chartCache[k] || "Loading chart…"}</td></tr>` : "";
+    const chart = chartOpen.has(k) ? `<tr class="chart-row"><td colspan="5">${chartCache[k] || "Loading chart…"}</td></tr>` : "";
     return row + chart;
   }).join("") : `<tr><td colspan="5" class="empty">${q ? "Nothing matches." : "No prices."}</td></tr>`;
+  renderPaging("price-paging", pricePage, rows.length, "prices");
 }
 
 $("price-rows").addEventListener("click", async e => {
-  const tr = e.target.closest("tr.clickable");
-  if (!tr) return;
+  const tr = e.target.closest("tr.clickable"); if (!tr) return;
   const k = tr.dataset.key;
-  if (chartOpen.has(k)) { chartOpen.delete(k); renderPrices(); return; }
-  chartOpen.add(k); renderPrices();
+  if (chartOpen.has(k)) { chartOpen.delete(k); render(); return; }
+  chartOpen.add(k); render();
   const [item, quality, city] = k.split("|");
   try {
     const summ = await (await fetch("data/items/" + encodeURIComponent(item) + ".json")).json();
     chartCache[k] = chartSVG(summ.filter(s => s.quality == quality && s.city == city), item, city);
   } catch (err) { chartCache[k] = "No history yet for this item."; }
-  renderPrices();
+  render();
 });
 
-// chartSVG draws daily median sell (muted) and buy (gold) lines, with a shaded
-// normal range behind the sell line.
 function chartSVG(days, item, city) {
   const sell = days.filter(d => d.side === "sell").sort((a, b) => a.day < b.day ? -1 : 1);
   const buy = days.filter(d => d.side === "buy").sort((a, b) => a.day < b.day ? -1 : 1);
-  if (!sell.length && !buy.length) return `<p class="sub">No history yet for ${esc(item)} in ${esc(city)}.</p>`;
+  if (!sell.length && !buy.length) return `<p class="note">No history yet for ${esc(item)} in ${esc(city)}.</p>`;
   const sMed = sell.map(d => d.median), all = sMed.concat(buy.map(d => d.median));
   const sorted = [...sMed].sort((a, b) => a - b);
   const pct = p => sorted.length ? sorted[Math.min(sorted.length - 1, Math.round(p * (sorted.length - 1)))] : 0;
@@ -209,24 +342,21 @@ function chartSVG(days, item, city) {
   const y = v => H - padY - (v - vMin) / (vMax - vMin) * (H - padY * 2);
   const poly = (arr, color) => arr.length ? `<polyline points="${arr.map((d, i) => `${x(i).toFixed(1)},${y(d.median).toFixed(1)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2"/>` : "";
   const band = sorted.length >= 3 ? `<rect x="${padX}" y="${y(pct(0.75)).toFixed(1)}" width="${(W - 8 - padX).toFixed(1)}" height="${Math.max(1, y(pct(0.25)) - y(pct(0.75))).toFixed(1)}" fill="var(--gold)" opacity="0.08"/><line x1="${padX}" y1="${y(normal).toFixed(1)}" x2="${W - 8}" y2="${y(normal).toFixed(1)}" stroke="var(--gold-dim)" stroke-dasharray="4 4"/>` : "";
-  return `<div class="chart-legend"><span><i style="background:var(--muted)"></i>Cheapest to buy</span><span><i style="background:var(--gold)"></i>Best to sell</span>${sorted.length >= 3 ? '<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>' : ""}</div>
+  return `<div class="chart"><div class="chart-legend"><span><i style="background:var(--muted)"></i>Cheapest to buy</span><span><i style="background:var(--gold)"></i>Best to sell</span>${sorted.length >= 3 ? '<span><i style="background:var(--gold);opacity:.3"></i>Normal range</span>' : ""}</div>
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily price">${band}
     <text x="${padX - 6}" y="${(y(vMax) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(Math.round(vMax))}</text>
     <text x="${padX - 6}" y="${(y(vMin) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(Math.round(vMin))}</text>
-    ${poly(sell, "var(--muted)")}${poly(buy, "var(--gold)")}</svg>`;
+    ${poly(sell, "var(--muted)")}${poly(buy, "var(--gold)")}</svg></div>`;
 }
 
 function minsAgo(iso) { return Math.round((Date.now() - Date.parse(iso)) / 60000); }
-
 async function load() {
   try { current = await (await fetch("data/current.json?t=" + Date.now())).json(); }
   catch (e) { $("updated").innerHTML = '<span class="warn">Couldn\'t load the data yet. Check back soon.</span>'; return; }
-  const m = minsAgo(current.updated);
-  const stale = m > 360;
+  const m = minsAgo(current.updated), stale = m > 360;
   $("updated").innerHTML = `Updated ${ago(m)} ago.${current.learningDays ? " Learning from " + current.learningDays + " days of history." : ""}${stale ? ' <span class="warn">This data is over 6 hours old.</span>' : ""}`;
-  renderFlips();
-  renderCrafts();
-  $("n-prices").textContent = fmt(current.priceCount);
+  $("n-prices").textContent = current.priceCount ? fmt(current.priceCount) : "";
+  render();
 }
 load();
 </script>

@@ -126,21 +126,26 @@ type stateJSON struct {
 	Hidden       []HiddenPrice `json:"hidden"`       // troll/junk prices that were filtered out
 	HiddenCount  int           `json:"hiddenCount"`  // how many in total (Hidden may be capped)
 	LearningDays int           `json:"learningDays"` // days of price history the scores use
+	// All prices is paged on the server (there can be ~100,000):
+	PriceTotal int `json:"priceTotal"` // total prices matching the search
+	PricePage  int `json:"pricePage"`  // the page this response holds (0-based)
+	PageSize   int `json:"pageSize"`   // rows per page
 }
 
-func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool, haulPerKg, risk float64) stateJSON {
+const pageSize = 200 // rows sent per page for the All prices tab
+
+func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, carryKg float64, budget int64, freshFirst bool, haulPerKg, risk float64, tab, search string, pricePage int) stateJSON {
 	histDir := ""
 	if a.hist != nil {
 		histDir = a.hist.dir
 	}
 	stats := loadStats(histDir, time.Now().UTC())
 
+	// Flips and crafts are sent in full (the window pages and filters them, so
+	// nothing is hidden behind a cap). They're a few thousand rows at most.
 	flips := a.book.Flips(tax, maxAge, freshFirst, haulPerKg, risk)
 	out := make([]flipJSON, 0, len(flips))
-	for i, f := range flips {
-		if i == 300 {
-			break
-		}
+	for _, f := range flips {
 		out = append(out, flipRowJSON(f, stats))
 	}
 	trips := planTrips(out, carryKg, budget)
@@ -148,12 +153,20 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, c
 	for i := range crafts {
 		crafts[i].Reliability, crafts[i].RelOK = stats.reliability(craftRelKey(crafts[i].ID, 1))
 	}
-	if len(crafts) > 300 {
-		crafts = crafts[:300]
-	}
 	a.recordSnapshot(histDir, flips, crafts)
 	prices := a.book.Count()
-	all := a.book.All(maxAge, 2000)
+
+	// All prices can be ~100,000 rows, so it's paged on the server: send only
+	// the current page when that tab is open, but always the real total.
+	var all []PriceRow
+	priceTotal := 0
+	if tab == "prices" {
+		all, priceTotal = a.book.AllPage(maxAge, search, pricePage, pageSize)
+	} else {
+		all = []PriceRow{}
+		priceTotal = a.book.AllCount(maxAge, search)
+	}
+
 	_, hidden := a.book.clean(maxAge) // the troll/junk prices that were removed
 	hiddenCount := len(hidden)
 	if len(hidden) > 300 {
@@ -177,6 +190,7 @@ func (a *App) state(tax, returnRate, stationFee float64, maxAge time.Duration, c
 		Packets: a.packets, Orders: a.orders, Prices: prices, Encrypted: a.encrypted,
 		LastPacket: last, Flips: out, Crafts: crafts, Trips: trips, All: all, Events: events, Recording: rec, Public: pub,
 		Hidden: hidden, HiddenCount: hiddenCount, LearningDays: stats.learningDays(),
+		PriceTotal: priceTotal, PricePage: pricePage, PageSize: pageSize,
 	}
 }
 
@@ -273,12 +287,18 @@ func (a *App) routes() http.Handler {
 		if err != nil || risk < 0 || risk > 1 {
 			risk = 0
 		}
+		tab := q.Get("tab")
+		search := strings.ToLower(strings.TrimSpace(q.Get("q")))
+		pricePage, err := strconv.Atoi(q.Get("pricePage"))
+		if err != nil || pricePage < 0 {
+			pricePage = 0
+		}
 		// Remember these so the saved flips.csv matches what you're viewing.
 		a.mu.Lock()
 		a.csvTax, a.csvAge = tax, time.Duration(mins)*time.Minute
 		a.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst, haul, risk))
+		json.NewEncoder(w).Encode(a.state(tax, rr, fee, time.Duration(mins)*time.Minute, carry, budget, freshFirst, haul, risk, tab, search, pricePage))
 	})
 
 	mux.HandleFunc("/api/record/start", func(w http.ResponseWriter, r *http.Request) {

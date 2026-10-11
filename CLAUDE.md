@@ -36,6 +36,13 @@ embedded HTML page. Keep comments short and plain, like the ones already here.
    an error before writing the site files, so the Action fails and the old site
    stays up. Never commit generated data or secrets to `main`; history lives on
    the `data` branch and the only token is the built-in `GITHUB_TOKEN`.
+7d. **Never show a capped number as if it's a total.** If a list is limited for
+   speed, send the real total separately and say "showing X of Y". The window
+   sends flips/crafts in full and pages them; All prices (can be ~100k) is paged
+   on the server (`AllPage`/`AllCount`), sending a page plus the real total.
+7e. **Search, sort and filters work on the full data, not just what's loaded.**
+   The window filters/sorts the whole flip list before paging; All-prices search
+   runs server-side over every price, not over one page.
 8. **Run every check, every time, before saying "done":**
    - `gofmt -w .`
    - `go vet ./...` and `GOOS=windows go vet ./...` (the capture code is

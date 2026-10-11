@@ -625,7 +625,7 @@ func TestRecordingRoundTrip(t *testing.T) {
 func TestStateNeverSendsNull(t *testing.T) {
 	recipes = map[string]Recipe{}
 	app := NewApp(filepath.Join(t.TempDir(), "p.json"))
-	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour, 1500, 1000000, false, 0, 0))
+	data, _ := json.Marshal(app.state(0.04, 0.152, 0, time.Hour, 1500, 1000000, false, 0, 0, "flips", "", 0))
 	for _, k := range []string{`"flips":null`, `"crafts":null`, `"trips":null`, `"events":null`, `"all":null`} {
 		if strings.Contains(string(data), k) {
 			t.Fatalf("window would break on %s", k)
@@ -837,6 +837,33 @@ func TestAllNewestFirstAndLimited(t *testing.T) {
 	// The limit is respected even when both are fresh.
 	if rows := b.All(3*time.Hour, 1); len(rows) != 1 {
 		t.Fatalf("All should respect the limit, got %d rows", len(rows))
+	}
+}
+
+func TestAllPageSearchCount(t *testing.T) {
+	b := NewBook(filepath.Join(t.TempDir(), "p.json"))
+	o := func(item string) Order {
+		return Order{Item: item, Quality: 1, Price: 1000, Amount: 1, Type: "offer"}
+	}
+	b.Add([]Order{o("T4_BAG")}, "1002", false)
+	b.Add([]Order{o("T5_BAG")}, "1002", false)
+	b.Add([]Order{o("T4_CAPE")}, "1002", false)
+
+	if n := b.AllCount(time.Hour, ""); n != 3 {
+		t.Fatalf("expected 3 prices, got %d", n)
+	}
+	if n := b.AllCount(time.Hour, "bag"); n != 2 {
+		t.Fatalf("search should match the 2 bags, got %d", n)
+	}
+	// Page size 2: page 0 has 2 rows, page 1 has the last, total is always 3.
+	if rows, total := b.AllPage(time.Hour, "", 0, 2); total != 3 || len(rows) != 2 {
+		t.Fatalf("page 0: %d rows, total %d", len(rows), total)
+	}
+	if rows, total := b.AllPage(time.Hour, "", 1, 2); total != 3 || len(rows) != 1 {
+		t.Fatalf("page 1: %d rows, total %d", len(rows), total)
+	}
+	if rows, total := b.AllPage(time.Hour, "", 9, 2); total != 3 || len(rows) != 0 {
+		t.Fatalf("page past the end should be empty, got %d rows", len(rows))
 	}
 }
 
