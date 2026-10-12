@@ -171,9 +171,10 @@ function confCell(o) {
   if (!o.relOk) return "–";
   const pct = Math.round(o.reliability * 100);
   const parts = [];
-  if (o.swingOk) parts.push(esc(o.swingLabel));
+  if (o.volOk) parts.push(`<span title="Volatility: how much this price moves day to day. Steady is safer to flip.">${esc(o.volLabel)}</span>`);
+  else if (o.swingOk) parts.push(esc(o.swingLabel));
   if (o.vsNormalOk) parts.push(vsNormalText(o));
-  return `${pct}%<div class="bar"><i style="width:${pct}%"></i></div>${parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : ""}`;
+  return `<span title="Reliability: how often this flip has actually been profitable so far.">${pct}%</span><div class="bar"><i style="width:${pct}%"></i></div>${parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : ""}`;
 }
 const usualVal = f => f.total * (f.relOk ? f.reliability : 0.000001);
 const bestOf = c => Math.max(c.instant ? c.profit : -Infinity, c.list ? c.listProfit : -Infinity);

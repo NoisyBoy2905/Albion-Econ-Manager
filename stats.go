@@ -101,10 +101,11 @@ func statFromMedians(dayMedians []int64, totalCount int) keyStat {
 
 // HistStats holds everything learned, ready for the window.
 type HistStats struct {
-	key  map[string]keyStat // dedupKey (item|quality|city|side) -> stat
-	rel  map[string]float64 // flip/craft key -> reliability (0..1)
-	relN int                // snapshots the reliability is based on
-	days int                // distinct days of history in the window
+	key  map[string]keyStat   // dedupKey (item|quality|city|side) -> stat
+	rel  map[string]float64   // flip/craft key -> reliability (0..1)
+	relN int                  // snapshots the reliability is based on
+	days int                  // distinct days of history in the window
+	qt   map[string]QuantStat // dedupKey -> quant maths (quant.go)
 }
 
 // loadSummaries reads the daily summaries for the last `days` days.
@@ -147,7 +148,16 @@ func loadStats(dir string, now time.Time) *HistStats {
 	}
 	hs.days = len(daysSeen)
 	hs.rel, hs.relN = reliabilityFromSnapshots(dir, now)
+	hs.qt = loadQuant(dir, now)
 	return hs
+}
+
+// quantOf returns the quant maths for one item+quality+city+side.
+func (h *HistStats) quantOf(item string, quality int, city, side string) QuantStat {
+	if h == nil {
+		return QuantStat{}
+	}
+	return h.qt[dedupKey(item, quality, city, side)]
 }
 
 func (h *HistStats) stat(item string, quality int, city, side string) (keyStat, bool) {

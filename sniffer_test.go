@@ -1239,6 +1239,69 @@ func TestCloudSiteSizeBounded(t *testing.T) {
 	}
 }
 
+// --- Quant: Part 1, volatility ---
+
+func near(a, b, tol float64) bool { return a-b < tol && b-a < tol }
+
+func TestQuantMeanStdev(t *testing.T) {
+	// mean of 2,4,6 = 4. Deviations -2,0,2; squares 4,0,4; sum 8; /(3-1)=4;
+	// sqrt(4)=2. So stdev = 2.
+	if m := mean([]float64{2, 4, 6}); !near(m, 4, 1e-9) {
+		t.Fatalf("mean = %v, want 4", m)
+	}
+	if s := stdev([]float64{2, 4, 6}); !near(s, 2, 1e-9) {
+		t.Fatalf("stdev = %v, want 2", s)
+	}
+	if s := stdev([]float64{5}); s != 0 {
+		t.Fatalf("stdev of one value should be 0, got %v", s)
+	}
+}
+
+func TestQuantLogReturns(t *testing.T) {
+	// ln(110/100)=ln(1.1)=0.0953102, ln(99/110)=ln(0.9)=-0.1053605.
+	r := logReturns([]int64{100, 110, 99})
+	if len(r) != 2 || !near(r[0], 0.0953102, 1e-6) || !near(r[1], -0.1053605, 1e-6) {
+		t.Fatalf("log returns wrong: %v", r)
+	}
+	// A non-positive price (e.g. a bad/zero day) breaks the chain: only the
+	// 100->110 step survives, the 110->0 and 0->120 steps are skipped.
+	if r := logReturns([]int64{100, 110, 0, 120}); len(r) != 1 || !near(r[0], 0.0953102, 1e-6) {
+		t.Fatalf("expected the non-positive step skipped, got %v", r)
+	}
+}
+
+func TestQuantVolatility(t *testing.T) {
+	// medians 100,110,105,115,108 -> returns 0.095310, -0.046520, 0.090972,
+	// -0.062783; mean 0.019245; sample std of those ≈ 0.08560; ×100 ≈ 8.56%.
+	v, ok := volatilityPct([]int64{100, 110, 105, 115, 108})
+	if !ok || !near(v, 8.56, 0.2) {
+		t.Fatalf("volatility = %v (ok=%v), want ~8.56%%", v, ok)
+	}
+	if volLabel(v) != "normal" {
+		t.Fatalf("8.56%% should label normal, got %q", volLabel(v))
+	}
+	// Edge cases: too few points, all-equal (std 0), one value, empty.
+	if _, ok := volatilityPct([]int64{100, 110, 105}); ok {
+		t.Fatal("fewer than 5 points should be not-enough")
+	}
+	if _, ok := volatilityPct([]int64{100, 100, 100, 100, 100}); ok {
+		t.Fatal("all-equal prices (std 0) should be not-enough")
+	}
+	if _, ok := volatilityPct([]int64{100}); ok {
+		t.Fatal("one value should be not-enough")
+	}
+	if _, ok := volatilityPct(nil); ok {
+		t.Fatal("empty should be not-enough")
+	}
+	// A falling price still has a real volatility.
+	if v, ok := volatilityPct([]int64{120, 110, 100, 90, 80}); !ok || v <= 0 {
+		t.Fatalf("falling prices should still have volatility, got %v ok=%v", v, ok)
+	}
+	if volLabel(3) != "steady" || volLabel(10) != "normal" || volLabel(20) != "jumpy" {
+		t.Fatal("volLabel thresholds wrong")
+	}
+}
+
 func TestBatchesStayShort(t *testing.T) {
 	var ids []string
 	for i := 0; i < 500; i++ {

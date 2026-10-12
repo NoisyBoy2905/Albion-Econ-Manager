@@ -103,6 +103,10 @@ type flipJSON struct {
 	Swing       float64 `json:"swing"`
 	SwingLabel  string  `json:"swingLabel"`
 	SwingOK     bool    `json:"swingOk"`
+	// quant maths (quant.go):
+	Vol      float64 `json:"vol"`
+	VolOK    bool    `json:"volOk"`
+	VolLabel string  `json:"volLabel"`
 }
 
 type stateJSON struct {
@@ -208,6 +212,9 @@ func flipRowJSON(f Flip, stats *HistStats) flipJSON {
 	if s, ok := stats.stat(f.Item, f.Quality, f.From, "sell"); ok {
 		fj.VsNormal, fj.VsNormalOK = float64(f.BuyFor-s.Normal)/float64(s.Normal)*100, true
 		fj.Swing, fj.SwingLabel, fj.SwingOK = s.Swing, swingLabel(s.Swing), true
+	}
+	if q := stats.quantOf(f.Item, f.Quality, f.From, "sell"); q.VolOK {
+		fj.Vol, fj.VolOK, fj.VolLabel = q.Vol, true, q.VolLabel
 	}
 	return fj
 }

@@ -588,14 +588,12 @@ document.addEventListener("click", e => {
 function confCell(o) {
   if (!o.relOk) return "–";
   const pct = Math.round(o.reliability * 100);
-  let sub = "";
-  if (o.swingOk !== undefined) {
-    const parts = [];
-    if (o.swingOk) parts.push(esc(o.swingLabel));
-    if (o.vsNormalOk) parts.push(vsNormalText(o));
-    sub = parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : "";
-  }
-  return `${pct}%<div class="bar"><i style="width:${pct}%"></i></div>${sub}`;
+  const parts = [];
+  if (o.volOk) parts.push(`<span title="Volatility: how much this price moves day to day (std dev of daily returns). Steady is safer to flip.">${esc(o.volLabel)}</span>`);
+  else if (o.swingOk) parts.push(esc(o.swingLabel));
+  if (o.vsNormalOk) parts.push(vsNormalText(o));
+  const sub = parts.length ? `<span class="sub">${parts.join(" · ")}</span>` : "";
+  return `<span title="Reliability: how often this flip has actually been profitable in the snapshots so far.">${pct}%</span><div class="bar"><i style="width:${pct}%"></i></div>${sub}`;
 }
 function vsNormalText(f) {
   if (!f.vsNormalOk) return "";

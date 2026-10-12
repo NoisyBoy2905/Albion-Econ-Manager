@@ -43,6 +43,11 @@ embedded HTML page. Keep comments short and plain, like the ones already here.
 7e. **Search, sort and filters work on the full data, not just what's loaded.**
    The window filters/sorts the whole flip list before paging; All-prices search
    runs server-side over every price, not over one page.
+7f. **Quant metrics must handle small samples honestly.** The maths in
+   `quant.go` needs enough data (e.g. 5+ daily points, a non-zero spread) or it
+   returns ok=false and the window shows "–" / "not enough yet" — never a
+   guessed number. Each formula is a small pure function with a plain-English
+   comment and a hand-worked test; explanations live in `docs/QUANT.md`.
 8. **Run every check, every time, before saying "done":**
    - `gofmt -w .`
    - `go vet ./...` and `GOOS=windows go vet ./...` (the capture code is
