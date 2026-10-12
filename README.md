@@ -1,6 +1,8 @@
 # Albion Market Sniffer
 
-Reads Albion Online market prices straight from your own game while you browse the market, then finds items you can buy cheap in one city and sell for more in another.
+AI-assisted learning project: I designed the features, tested it with real game data and set up the automatic website; the code was written with Claude. It reads Albion Online market prices straight from your own game while you browse the market, then finds items you can buy cheap in one city and sell for more in another.
+
+**Live site:** https://noisyboy2905.github.io/Albion-Econ-Manager/
 
 It only **reads** your own network traffic. It never sends anything to the game, never changes the game, and never plays for you. The only time it goes online is when you press **Get public prices**, which downloads prices from the Albion Data Project (it sends a list of item names, nothing about you). The Albion Data Project says Sandbox Interactive has stated that reading and viewing data this way is allowed. Check the [Data Project FAQ](https://www.albion-online-data.com/client-faq) if you're unsure.
 
@@ -205,5 +207,3 @@ go test .
 go run . -demo       # on Mac/Linux: shows the window with made-up prices
 GOOS=windows GOARCH=amd64 go build -o albion-sniffer.exe .
 ```
-
-Built with Claude.
